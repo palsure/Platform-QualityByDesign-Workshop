@@ -1,0 +1,1229 @@
+<div>Status code 200 </div>
+
+
+<h4>Body</h4>
+<div>
+    <pre class="preformated-text">
+{
+    &quot;openapi&quot;: &quot;3.0.1&quot;,
+    &quot;info&quot;: {
+        &quot;title&quot;: &quot;QoE API&quot;,
+        &quot;description&quot;: &quot;REST API for QoE metrics, validation, videos, and pipeline acceptance (workshop demo).&quot;,
+        &quot;contact&quot;: {
+            &quot;name&quot;: &quot;DevOpsDays QoE&quot;
+        },
+        &quot;license&quot;: {
+            &quot;name&quot;: &quot;Apache 2.0&quot;,
+            &quot;url&quot;: &quot;https://www.apache.org/licenses/LICENSE-2.0&quot;
+        },
+        &quot;version&quot;: &quot;1.0.0&quot;
+    },
+    &quot;servers&quot;: [
+        {
+            &quot;url&quot;: &quot;http://localhost:0&quot;,
+            &quot;description&quot;: &quot;Local&quot;
+        }
+    ],
+    &quot;tags&quot;: [
+        {
+            &quot;name&quot;: &quot;Validation&quot;,
+            &quot;description&quot;: &quot;Validation rules and run results&quot;
+        },
+        {
+            &quot;name&quot;: &quot;Platforms&quot;,
+            &quot;description&quot;: &quot;Supported playback platforms&quot;
+        },
+        {
+            &quot;name&quot;: &quot;Videos&quot;,
+            &quot;description&quot;: &quot;Video catalog — consumed by web, Android and iOS player apps&quot;
+        },
+        {
+            &quot;name&quot;: &quot;Metrics&quot;,
+            &quot;description&quot;: &quot;Ingest and query QoE session metrics&quot;
+        },
+        {
+            &quot;name&quot;: &quot;Pipeline acceptance&quot;,
+            &quot;description&quot;: &quot;Record CI platform results and gate releases&quot;
+        }
+    ],
+    &quot;paths&quot;: {
+        &quot;/api/v1/videos/{id}&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Get a single video by its videoId&quot;,
+                &quot;operationId&quot;: &quot;getVideo&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;id&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/Video&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            &quot;put&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Update an existing video entry (full replace)&quot;,
+                &quot;operationId&quot;: &quot;updateVideo&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;id&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;$ref&quot;: &quot;#/components/schemas/VideoRequest&quot;
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/Video&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            &quot;delete&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Soft-delete a video (marks it inactive)&quot;,
+                &quot;operationId&quot;: &quot;deleteVideo&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;id&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/videos&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;List active videos&quot;,
+                &quot;description&quot;: &quot;Returns all active videos. Optionally filter by category.&quot;,
+                &quot;operationId&quot;: &quot;listVideos&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;category&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;description&quot;: &quot;Filter by category: movie | show | live | sports | documentary&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;$ref&quot;: &quot;#/components/schemas/Video&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Create a new video entry&quot;,
+                &quot;operationId&quot;: &quot;createVideo&quot;,
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;$ref&quot;: &quot;#/components/schemas/VideoRequest&quot;
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/Video&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/validation/run&quot;: {
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Validation&quot;
+                ],
+                &quot;operationId&quot;: &quot;runValidation&quot;,
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;type&quot;: &quot;object&quot;,
+                                &quot;additionalProperties&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;
+                                }
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/ValidationResult&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/validation/rules&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Validation&quot;
+                ],
+                &quot;operationId&quot;: &quot;listRules&quot;,
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;type&quot;: &quot;object&quot;,
+                                        &quot;additionalProperties&quot;: {
+                                            &quot;type&quot;: &quot;object&quot;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Validation&quot;
+                ],
+                &quot;operationId&quot;: &quot;createRule&quot;,
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;type&quot;: &quot;object&quot;,
+                                &quot;additionalProperties&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;
+                                }
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;,
+                                    &quot;additionalProperties&quot;: {
+                                        &quot;type&quot;: &quot;object&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/pipeline-runs&quot;: {
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Pipeline acceptance&quot;
+                ],
+                &quot;operationId&quot;: &quot;createRun&quot;,
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;$ref&quot;: &quot;#/components/schemas/CreateRunRequest&quot;
+                            }
+                        }
+                    }
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/CreateRunResponse&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/pipeline-runs/{runId}/platforms&quot;: {
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Pipeline acceptance&quot;
+                ],
+                &quot;operationId&quot;: &quot;addPlatform&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;runId&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;$ref&quot;: &quot;#/components/schemas/PlatformResultRequest&quot;
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/PlatformResultDto&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/pipeline-runs/{runId}/finalize&quot;: {
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Pipeline acceptance&quot;
+                ],
+                &quot;operationId&quot;: &quot;finalize&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;runId&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/PipelineRunDto&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/metrics&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Metrics&quot;
+                ],
+                &quot;operationId&quot;: &quot;getMetrics&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;platform&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;videoId&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;sessionId&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;startTime&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;,
+                            &quot;format&quot;: &quot;date-time&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;endTime&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;,
+                            &quot;format&quot;: &quot;date-time&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;$ref&quot;: &quot;#/components/schemas/QoEMetric&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            &quot;post&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Metrics&quot;
+                ],
+                &quot;operationId&quot;: &quot;ingestMetrics&quot;,
+                &quot;requestBody&quot;: {
+                    &quot;content&quot;: {
+                        &quot;application/json&quot;: {
+                            &quot;schema&quot;: {
+                                &quot;type&quot;: &quot;object&quot;,
+                                &quot;additionalProperties&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;
+                                }
+                            }
+                        }
+                    },
+                    &quot;required&quot;: true
+                },
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/QoEMetric&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/videos/{id}/manifest&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Get HLS and DASH manifest URLs for a video&quot;,
+                &quot;operationId&quot;: &quot;getManifest&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;id&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;,
+                                    &quot;additionalProperties&quot;: {
+                                        &quot;type&quot;: &quot;string&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/videos/search&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Videos&quot;
+                ],
+                &quot;summary&quot;: &quot;Search videos&quot;,
+                &quot;description&quot;: &quot;Full-text search across title, description and genre.&quot;,
+                &quot;operationId&quot;: &quot;searchVideos&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;q&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;description&quot;: &quot;Search term&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;$ref&quot;: &quot;#/components/schemas/Video&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/validation/results&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Validation&quot;
+                ],
+                &quot;operationId&quot;: &quot;getResults&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;videoId&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;platform&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;sessionId&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;$ref&quot;: &quot;#/components/schemas/ValidationResult&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/platforms&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Platforms&quot;
+                ],
+                &quot;summary&quot;: &quot;List all supported platforms&quot;,
+                &quot;description&quot;: &quot;Returns every platform the API accepts for metrics, validation, and pipeline-run submissions.&quot;,
+                &quot;operationId&quot;: &quot;listPlatforms&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;category&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;,
+                            &quot;enum&quot;: [
+                                &quot;BROWSER&quot;,
+                                &quot;MOBILE&quot;,
+                                &quot;TV&quot;,
+                                &quot;GAMING&quot;,
+                                &quot;DESKTOP&quot;,
+                                &quot;INTERNAL&quot;
+                            ]
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;type&quot;: &quot;object&quot;,
+                                        &quot;additionalProperties&quot;: {
+                                            &quot;type&quot;: &quot;string&quot;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/pipeline-runs/{runId}&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Pipeline acceptance&quot;
+                ],
+                &quot;operationId&quot;: &quot;get&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;runId&quot;,
+                        &quot;in&quot;: &quot;path&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/PipelineRunDto&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/pipeline-runs/latest&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Pipeline acceptance&quot;
+                ],
+                &quot;operationId&quot;: &quot;latest&quot;,
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;$ref&quot;: &quot;#/components/schemas/PipelineRunDto&quot;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/metrics/trends&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Metrics&quot;
+                ],
+                &quot;operationId&quot;: &quot;getTrends&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;platform&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;startTime&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;,
+                            &quot;format&quot;: &quot;date-time&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;endTime&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: true,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;,
+                            &quot;format&quot;: &quot;date-time&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;array&quot;,
+                                    &quot;items&quot;: {
+                                        &quot;type&quot;: &quot;object&quot;,
+                                        &quot;additionalProperties&quot;: {
+                                            &quot;type&quot;: &quot;object&quot;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        &quot;/api/v1/metrics/summary&quot;: {
+            &quot;get&quot;: {
+                &quot;tags&quot;: [
+                    &quot;Metrics&quot;
+                ],
+                &quot;operationId&quot;: &quot;getSummary&quot;,
+                &quot;parameters&quot;: [
+                    {
+                        &quot;name&quot;: &quot;platform&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    },
+                    {
+                        &quot;name&quot;: &quot;videoId&quot;,
+                        &quot;in&quot;: &quot;query&quot;,
+                        &quot;required&quot;: false,
+                        &quot;schema&quot;: {
+                            &quot;type&quot;: &quot;string&quot;
+                        }
+                    }
+                ],
+                &quot;responses&quot;: {
+                    &quot;200&quot;: {
+                        &quot;description&quot;: &quot;OK&quot;,
+                        &quot;content&quot;: {
+                            &quot;*/*&quot;: {
+                                &quot;schema&quot;: {
+                                    &quot;type&quot;: &quot;object&quot;,
+                                    &quot;additionalProperties&quot;: {
+                                        &quot;type&quot;: &quot;object&quot;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    &quot;components&quot;: {
+        &quot;schemas&quot;: {
+            &quot;VideoRequest&quot;: {
+                &quot;required&quot;: [
+                    &quot;title&quot;,
+                    &quot;videoId&quot;
+                ],
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;videoId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Unique video identifier used by client apps&quot;,
+                        &quot;example&quot;: &quot;vid-hls-001&quot;
+                    },
+                    &quot;title&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Display title&quot;,
+                        &quot;example&quot;: &quot;Big Buck Bunny&quot;
+                    },
+                    &quot;description&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Short synopsis shown in UI&quot;,
+                        &quot;example&quot;: &quot;A giant rabbit befriends small creatures.&quot;
+                    },
+                    &quot;thumbnailUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;URL of the poster / thumbnail image&quot;
+                    },
+                    &quot;hlsManifestUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;HLS (.m3u8) manifest URL for adaptive streaming&quot;
+                    },
+                    &quot;dashManifestUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;MPEG-DASH (.mpd) manifest URL&quot;
+                    },
+                    &quot;duration&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;description&quot;: &quot;Total duration in seconds&quot;,
+                        &quot;format&quot;: &quot;int64&quot;,
+                        &quot;example&quot;: 596
+                    },
+                    &quot;resolution&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Native resolution, e.g. 1920x1080&quot;,
+                        &quot;example&quot;: &quot;1920x1080&quot;
+                    },
+                    &quot;bitrate&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;description&quot;: &quot;Peak bitrate in bits per second&quot;,
+                        &quot;format&quot;: &quot;int64&quot;,
+                        &quot;example&quot;: 5000000
+                    },
+                    &quot;category&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Content category: movie | show | live | sports | documentary&quot;,
+                        &quot;example&quot;: &quot;movie&quot;
+                    },
+                    &quot;genre&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Genre tag: drama | comedy | action | news | animation | etc.&quot;,
+                        &quot;example&quot;: &quot;animation&quot;
+                    }
+                },
+                &quot;description&quot;: &quot;Payload for creating or updating a video item&quot;
+            },
+            &quot;Video&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;id&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;videoId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;title&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;description&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;thumbnailUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;hlsManifestUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;dashManifestUrl&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;duration&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;resolution&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;bitrate&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;category&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;genre&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;active&quot;: {
+                        &quot;type&quot;: &quot;boolean&quot;
+                    },
+                    &quot;createdAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;updatedAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    }
+                }
+            },
+            &quot;ValidationResult&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;id&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;videoId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;platform&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;sessionId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;passed&quot;: {
+                        &quot;type&quot;: &quot;boolean&quot;
+                    },
+                    &quot;qualityScore&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;failureReason&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;validationDetails&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;validatedAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;createdAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;updatedAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    }
+                }
+            },
+            &quot;CreateRunRequest&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;githubRunId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    }
+                }
+            },
+            &quot;CreateRunResponse&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;runId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;status&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;gateThreshold&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    }
+                }
+            },
+            &quot;PlatformResultRequest&quot;: {
+                &quot;required&quot;: [
+                    &quot;failed&quot;,
+                    &quot;passed&quot;,
+                    &quot;platform&quot;,
+                    &quot;skipped&quot;,
+                    &quot;total&quot;
+                ],
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;platform&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;description&quot;: &quot;Platform key — see GET /api/v1/platforms for the full list&quot;,
+                        &quot;example&quot;: &quot;web&quot;,
+                        &quot;enum&quot;: [
+                            &quot;web&quot;,
+                            &quot;iphone&quot;,
+                            &quot;ipad&quot;,
+                            &quot;androidphone&quot;,
+                            &quot;androidtablet&quot;,
+                            &quot;appletv&quot;,
+                            &quot;androidtv&quot;,
+                            &quot;firetv&quot;,
+                            &quot;samsungtv&quot;,
+                            &quot;lgtv&quot;,
+                            &quot;roku&quot;,
+                            &quot;chromecast&quot;,
+                            &quot;xbox&quot;,
+                            &quot;playstation&quot;,
+                            &quot;desktop_macos&quot;,
+                            &quot;desktop_windows&quot;,
+                            &quot;desktop_linux&quot;,
+                            &quot;api&quot;,
+                            &quot;automation&quot;
+                        ]
+                    },
+                    &quot;passed&quot;: {
+                        &quot;minimum&quot;: 0,
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;failed&quot;: {
+                        &quot;minimum&quot;: 0,
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;skipped&quot;: {
+                        &quot;minimum&quot;: 0,
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;total&quot;: {
+                        &quot;minimum&quot;: 0,
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    }
+                }
+            },
+            &quot;PlatformResultDto&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;platform&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;passed&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;failed&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;skipped&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;total&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    }
+                }
+            },
+            &quot;PipelineRunDto&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;runId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;status&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;githubRunId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;gateThreshold&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;overallPassRate&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;overallPassRatePercent&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;createdAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;finalizedAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;platforms&quot;: {
+                        &quot;type&quot;: &quot;array&quot;,
+                        &quot;items&quot;: {
+                            &quot;$ref&quot;: &quot;#/components/schemas/PlatformResultDto&quot;
+                        }
+                    }
+                }
+            },
+            &quot;QoEMetric&quot;: {
+                &quot;type&quot;: &quot;object&quot;,
+                &quot;properties&quot;: {
+                    &quot;id&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;platform&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;videoId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;sessionId&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;timestamp&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;deviceType&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;os&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;browser&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;screenResolution&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;playbackState&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;currentTime&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;duration&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;totalBufferingTime&quot;: {
+                        &quot;type&quot;: &quot;number&quot;,
+                        &quot;format&quot;: &quot;double&quot;
+                    },
+                    &quot;startupTime&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;currentBitrate&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;currentResolution&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;bitrateSwitches&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;errorCount&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;framesDropped&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;framesRendered&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int32&quot;
+                    },
+                    &quot;networkSpeed&quot;: {
+                        &quot;type&quot;: &quot;integer&quot;,
+                        &quot;format&quot;: &quot;int64&quot;
+                    },
+                    &quot;playbackQuality&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;bufferingEvents&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;errors&quot;: {
+                        &quot;type&quot;: &quot;string&quot;
+                    },
+                    &quot;createdAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    },
+                    &quot;updatedAt&quot;: {
+                        &quot;type&quot;: &quot;string&quot;,
+                        &quot;format&quot;: &quot;date-time&quot;
+                    }
+                }
+            }
+        }
+    }
+}    </pre>
+</div>
+
+<h4>Headers</h4>
+<div>
+        <div>Keep-Alive: timeout=60</div>
+        <div>Connection: keep-alive</div>
+        <div>Vary: Access-Control-Request-Headers</div>
+        <div>Content-Length: 13883</div>
+        <div>Date: Sun, 21 Jun 2026 21:42:23 GMT</div>
+        <div>Content-Type: application/json</div>
+</div>
+
+
