@@ -70,7 +70,7 @@ Per-stage Slack reply. Builds the payload through `.github/scripts/stage_result_
 | `junit-dir` | no | `''` | If supplied, pass-rate is computed from XMLs in this directory |
 | `playwright-json` | no | `''` | Same idea for Playwright runs |
 | `slack-bot-token` | yes | — | `secrets.SLACK_BOT_TOKEN` |
-| `slack-channel-id` | yes | — | `secrets.SLACK_CHANNEL_ID` |
+| `slack-channel-id` | yes | — | `${{ vars.SLACK_CHANNEL_ID \|\| secrets.SLACK_CHANNEL_ID }}` |
 
 ```yaml
 - name: Notify Slack — Unit result
@@ -85,7 +85,7 @@ Per-stage Slack reply. Builds the payload through `.github/scripts/stage_result_
     thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
     junit-dir:        web-player/test-results
     slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-    slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+    slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 ```
 
 ---
@@ -101,7 +101,7 @@ One-line gate decision. Skips silently when Slack secrets aren't set, so the act
 | `blocked-message` | yes | Slack mrkdwn shown when the gate fails |
 | `thread-ts` | yes | Pipeline thread |
 | `slack-bot-token` | yes | `secrets.SLACK_BOT_TOKEN` |
-| `slack-channel-id` | yes | `secrets.SLACK_CHANNEL_ID` |
+| `slack-channel-id` | yes | `${{ vars.SLACK_CHANNEL_ID \|\| secrets.SLACK_CHANNEL_ID }}` |
 
 ```yaml
 - name: Post BAT gate decision to Slack
@@ -113,7 +113,7 @@ One-line gate decision. Skips silently when Slack secrets aren't set, so the act
     blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
     thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
     slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-    slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+    slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 ```
 
 ---
@@ -133,7 +133,7 @@ End-of-pipeline finalizer. Performs three steps:
 | `build-verdict` | yes | — | `success` / `failure` (drives the ✅/❌ icon in the header edit) |
 | `env-label` | no | `STAGE` | Shown in the metadata line — `STAGE` / `PROD` |
 | `slack-bot-token` | yes | — | `secrets.SLACK_BOT_TOKEN` |
-| `slack-channel-id` | yes | — | `secrets.SLACK_CHANNEL_ID` |
+| `slack-channel-id` | yes | — | `${{ vars.SLACK_CHANNEL_ID \|\| secrets.SLACK_CHANNEL_ID }}` |
 
 **Pre-condition:** `module-slack-payload.json` must already exist in the working directory. It's written by `.github/scripts/module_result_to_slack.py` (called from the report job before this action).
 
@@ -145,7 +145,7 @@ End-of-pipeline finalizer. Performs three steps:
     module-name:      ANDROID
     build-verdict:    ${{ needs.smoke-e2e.result == 'success' && 'success' || 'failure' }}
     slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-    slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+    slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 ```
 
 ---

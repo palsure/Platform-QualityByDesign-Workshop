@@ -115,7 +115,7 @@ env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+  SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
   # Exposed at workflow level so the publish-internal / publish-public
   # step-level `if: env.FIREBASE_TOKEN != ''` checks can see them.
   # Step-level `if:` cannot access secrets directly nor a step's own env.
@@ -148,7 +148,7 @@ jobs:
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — JUnit4 + MockK; Allure adapter; inline quality gate (≥80%)
@@ -246,7 +246,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       android-player/app/build/test-results/testDebugUnitTest
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate unit quality gate (inline)
         id: unit-gate
@@ -305,7 +305,7 @@ jobs:
           blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. Firebase publish *BLOCKED* (BAT continues for diagnostics)."
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. LINT — Kotlin static analysis; runs IN PARALLEL with unit tests
@@ -374,7 +374,7 @@ jobs:
           duration:        ${{ env.LINT_DURATION }}
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. BUILD — Assemble debug APK; gated on Unit gate (≥80%) + Lint passing
@@ -451,7 +451,7 @@ jobs:
           duration:        ${{ env.BUILD_DURATION }}
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. BAT E2E — @BAT Espresso tests; inline BAT gate
@@ -692,7 +692,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       android-player/app/build/outputs/androidTest-results/connected
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate BAT quality gate (inline)
         id: bat-gate
@@ -760,7 +760,7 @@ jobs:
           blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Post BAT skipped notice to Slack (device unavailable)
         if: always() && steps.bat-gate.outputs.gate_passed == 'skipped'
@@ -771,7 +771,7 @@ jobs:
           blocked-message:  ""
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4b. BAT SKIP NOTICE — pre-flight skip when the device lab is unavailable
@@ -820,7 +820,7 @@ jobs:
           blocked-message:  ""
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. SMOKE E2E — @Smoke Espresso tests; after BAT gate passes
@@ -995,7 +995,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       android-player/app/build/outputs/androidTest-results/connected
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Fail if Smoke tests failed
         if: steps.smoke.outputs.outcome == 'failure'
@@ -1129,7 +1129,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       android-player/app/build/outputs/androidTest-results/connected
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. QUALITY GATE — BAT gate failed; block public promotion + alert team
@@ -1171,7 +1171,7 @@ jobs:
           stage-result:    failure
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. PUBLISH INTERNAL — Firebase App Distribution (internal testers)
@@ -1285,7 +1285,7 @@ jobs:
           link-label:      ":mobile_phone: View on Firebase"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. PUBLISH PUBLIC — Firebase App Distribution (external testers)
@@ -1393,7 +1393,7 @@ jobs:
           link-label:      ":mobile_phone: View on Firebase"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. REPORT — final pipeline summary + Slack overall result
@@ -1505,7 +1505,7 @@ jobs:
                  needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Fail pipeline if critical stage failed
         # bat-e2e uses continue-on-error: true so its job result is always

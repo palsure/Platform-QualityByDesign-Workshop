@@ -62,7 +62,7 @@ env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+  SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -80,7 +80,7 @@ jobs:
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. BUILD — tsc + vite build; produces deployable dist/ artifact
@@ -209,7 +209,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       web-player/test-results
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate unit quality gate (inline)
         id: unit-gate
@@ -265,7 +265,7 @@ jobs:
           blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. Deploy + BAT *BLOCKED*."
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. BAT TESTS — @BAT Playwright tests; 4 workers, 45 s timeout per test
@@ -382,7 +382,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           playwright-json: web-player/playwright-results-bat.json
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate BAT quality gate (inline)
         id: bat-gate
@@ -411,7 +411,7 @@ jobs:
           blocked-message:  "BAT gate *FAILED* — Smoke tests *BLOCKED*."
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. DEPLOY PREVIEW — Firebase Hosting preview channel
@@ -529,7 +529,7 @@ jobs:
           link-label:      ":globe_with_meridians: Preview URL"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. SMOKE TESTS — @Smoke Playwright tests; 4 workers; async (non-blocking)
@@ -644,7 +644,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           playwright-json: web-player/playwright-results-smoke.json
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Fail if Smoke tests failed
         if: steps.smoke.outcome == 'failure'
@@ -711,7 +711,7 @@ jobs:
           link-label:      ":rocket: Live URL"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. ROLLBACK — BAT gate failed; block deployment and alert team
@@ -742,7 +742,7 @@ jobs:
           stage-result:    failure
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. REPORT — final pipeline summary + Slack overall result
@@ -838,7 +838,7 @@ jobs:
                  needs.deploy-preview.result == 'success') && 'success' || 'failure' }}
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       # ── PR comment with per-stage results + Allure links ──────────────────
       - name: Download unit JUnit results

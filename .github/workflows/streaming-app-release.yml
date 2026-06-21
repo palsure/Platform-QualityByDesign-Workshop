@@ -17,7 +17,7 @@ on:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+  SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 concurrency:
   group: acceptance-${{ github.workflow }}-${{ github.ref }}
@@ -40,7 +40,7 @@ jobs:
       environment-label: PROD
     secrets:
       SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   # ── Detect which modules changed ─────────────────────────────────────────
   # On push to main every acceptance job always runs (release gate).
@@ -177,7 +177,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        backend-api/build/test-results
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   acceptance-web:
     name: Acceptance — Web (Vitest + Playwright)
@@ -232,7 +232,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        web-player/test-results
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       # ── Playwright (E2E) ──────────────────────────────────────────────────
       - name: Install Playwright
@@ -274,7 +274,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           playwright-json:  web-player/playwright-results-e2e.json
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       # ── Combined gate input ───────────────────────────────────────────────
       - name: Combine web summaries
@@ -346,7 +346,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        android-player/app/build/test-results
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   acceptance-ios:
     name: Acceptance — iOS (Swift)
@@ -397,7 +397,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        ios-player/test-results
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   acceptance-automation:
     name: Acceptance — Automation (qoe-tests)
@@ -467,7 +467,7 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        qoe-automation-tests/target/surefire-reports
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   quality-gate:
     name: Quality gate (80% aggregate)
@@ -608,7 +608,7 @@ jobs:
           link-label:       ":package: View Release"
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   # ── Finalize Slack thread ────────────────────────────────────────────────
   # Edits the original "build started" header so the parent message
@@ -628,7 +628,7 @@ jobs:
       - name: Update Slack header with final verdict
         env:
           SLACK_BOT_TOKEN:   ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID:  ${{ secrets.SLACK_CHANNEL_ID }}
+          SLACK_CHANNEL_ID:  ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
           THREAD_TS:         ${{ needs.notify-start.outputs.thread_ts }}
           # Verdict resolution:
           #  • gate skipped      → 'skipped' (no tracked module changed —

@@ -51,16 +51,33 @@ Under **OAuth & Permissions → Scopes → Bot Token Scopes**, add:
 
    Or right-click the channel → **Copy link** — the ID is the last path segment.
 
-## 3. Add GitHub secrets
+## 3. Add GitHub configuration
 
-In your repo: **Settings → Secrets and variables → Actions → Secrets → New repository secret**
+In your repo: **Settings → Secrets and variables → Actions**
 
-| Secret | Value |
+### Secret (required)
+
+| Name | Value |
 |---|---|
 | `SLACK_BOT_TOKEN` | Bot token (`xoxb-…`) |
-| `SLACK_CHANNEL_ID` | Channel ID (`C…`) |
 
-No repository variables are required for Slack.
+Add under **Secrets → New repository secret**.
+
+### Channel ID — secret **or** variable
+
+The channel ID is not sensitive. Prefer a **repository variable**; a secret also works.
+
+| Name | Where | Value |
+|---|---|---|
+| `SLACK_CHANNEL_ID` | **Variables** (recommended) or **Secrets** | Channel ID (`C…`) — not `#channel-name` |
+
+Pipelines resolve: `vars.SLACK_CHANNEL_ID` first, then `secrets.SLACK_CHANNEL_ID`.
+
+```text
+Settings → Secrets and variables → Actions → Variables → New repository variable
+  Name:  SLACK_CHANNEL_ID
+  Value: C012AB3CD…
+```
 
 ### Verify configuration (secrets already set?)
 
@@ -123,8 +140,8 @@ After fixing `SLACK_CHANNEL_ID`, re-run the workflow. The notify step now **fail
 
 | Symptom | Fix |
 |---|---|
-| No messages at all | Confirm both secrets are set; re-run workflow after adding them |
-| `channel_not_found` | Fix channel ID (see above) |
+| No messages at all | Set `SLACK_BOT_TOKEN` (secret) and `SLACK_CHANNEL_ID` (variable or secret) |
+| `channel_not_found` | Fix channel ID (see above); check it is in **Variables or Secrets**, not only the wrong tab |
 | `not_in_channel` | Invite the bot to the channel (`/invite @…`) |
 | `invalid_auth` | Regenerate bot token; reinstall app to workspace |
 | Messages but no thread replies | Initial post failed — check notify-start job logs |

@@ -74,7 +74,7 @@ env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+  SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 0. NOTIFY START  (reusable workflow)
@@ -88,7 +88,7 @@ jobs:
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS  — fast pre-deploy gate, no DB required
@@ -178,7 +178,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       backend-api/build/test-results/unitTest
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate unit quality gate
         id: unit-gate
@@ -227,7 +227,7 @@ jobs:
           python3 - <<EOF
           import json, pathlib
           payload = {
-            "channel": "${{ secrets.SLACK_CHANNEL_ID }}",
+            "channel": "${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}",
             "thread_ts": "$TS",
             "unfurl_links": False, "unfurl_media": False,
             "blocks": [
@@ -347,7 +347,7 @@ jobs:
           duration:        ${{ env.DEPLOY_DURATION }}
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. BAT — Build Acceptance Tests (Testcontainers — own embedded DB)
@@ -430,7 +430,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       backend-api/build/test-results/batTest
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Evaluate BAT quality gate
         id: bat-gate
@@ -464,7 +464,7 @@ jobs:
           blocks.append({"type": "context", "elements": [
             {"type": "mrkdwn", "text": "Build #${{ github.run_number }} · <$RUN_URL|View run>"}
           ]})
-          payload = {"channel": "${{ secrets.SLACK_CHANNEL_ID }}", "thread_ts": "$TS",
+          payload = {"channel": "${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}", "thread_ts": "$TS",
                      "unfurl_links": False, "unfurl_media": False, "blocks": blocks}
           pathlib.Path("bat-gate-payload.json").write_text(json.dumps(payload))
           EOF
@@ -576,7 +576,7 @@ jobs:
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:       backend-api/build/test-results/smokeTest
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       - name: Fail if smoke tests failed
         if: steps.smoke.outcome == 'failure'
@@ -656,7 +656,7 @@ jobs:
           link-label:       ":rocket: Live URL"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. ROLLBACK — BAT gate failed; block promotion and alert team
@@ -690,7 +690,7 @@ jobs:
           stage-result:    failure
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. API REPORT + SLACK  — post final build summary; Allure already live per-stage
@@ -719,7 +719,7 @@ jobs:
         if: always()
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
@@ -761,7 +761,7 @@ jobs:
         continue-on-error: true
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
           THREAD_TS: ${{ needs.notify-start.outputs.thread_ts }}
           MODULE_NAME: API
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
