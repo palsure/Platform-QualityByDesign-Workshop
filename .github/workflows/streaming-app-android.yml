@@ -146,7 +146,7 @@ jobs:
         BAT Gate → Public Firebase → Smoke
         ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
-      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 

@@ -38,7 +38,7 @@ jobs:
       # If QUALITY_GATE_THRESHOLD ever changes, update both spots.
       pipeline-steps:    "Detect changes → Acceptance (5 platforms) → Quality gate ≥80% → GitHub Release"
       environment-label: PROD
-      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
 

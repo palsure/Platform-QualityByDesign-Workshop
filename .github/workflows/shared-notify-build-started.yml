@@ -29,7 +29,7 @@ on:
         type: string
         default: 'STAGE'
       slack-channel-id:
-        description: 'Slack channel ID (C…). Resolved by caller from vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID'
+        description: 'Slack channel ID (C…). Caller passes vars.SLACK_CHANNEL_ID; callee falls back to secrets if needed'
         type: string
         required: false
         default: ''
@@ -53,7 +53,7 @@ jobs:
       start_epoch: ${{ steps.epoch.outputs.start_epoch }}
     env:
       SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+      SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id || vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
         if: env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
         env:
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+          SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id || vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
         run: |
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"

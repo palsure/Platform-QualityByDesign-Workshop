@@ -84,7 +84,7 @@ jobs:
       module-name:       iOS
       pipeline-steps:    "Unit → Unit Gate → Build → BAT → Smoke → Regression (nightly) → Firebase"
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
-      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
