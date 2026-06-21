@@ -1,0 +1,408 @@
+{
+  "name": "QoE Workshop — Cross-Platform Quality of Experience",
+  "description": "Streaming QoE telemetry from the backend (Java APM + QoEMetric custom events), web player (Browser RUM + QoEMetric PageActions), and Android player (Mobile agent + QoEMetric custom events). Drop in your account ID where you see 7996933 if importing into a different NR account.",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Overview",
+      "description": "Cross-platform QoE at a glance — combines backend QoEMetric custom events with web PageActions so you see the full picture in one place.",
+      "widgets": [
+        {
+          "title": "Total QoE events (backend + web, last 1h)",
+          "layout": { "column": 1, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' SINCE 1 hour ago" }
+            ],
+            "thresholds": [
+              { "alertSeverity": "CRITICAL", "value": 0 },
+              { "alertSeverity": "WARNING",  "value": 1 }
+            ]
+          }
+        },
+        {
+          "title": "Distinct sessions",
+          "layout": { "column": 4, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT uniqueCount(sessionId) AS 'Sessions' FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Avg startup time (ms) by platform",
+          "layout": { "column": 7, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(startupTime) OR average(startupTimeMs) AS 'Avg startup ms' FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' SINCE 1 hour ago FACET platform" }
+            ]
+          }
+        },
+        {
+          "title": "Total buffering seconds",
+          "layout": { "column": 10, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT sum(totalBufferingTime) AS 'Buffering (s)' FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "QoE events over time, by platform",
+          "layout": { "column": 1, "row": 4, "width": 8, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "legend": { "enabled": true },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' FACET platform TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Playback quality distribution",
+          "layout": { "column": 9, "row": 4, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.pie" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' FACET playbackQuality SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Avg buffering time by platform (TIMESERIES)",
+          "layout": { "column": 1, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "legend": { "enabled": true },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(totalBufferingTime) FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' FACET platform TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Top videos by watch sessions",
+          "layout": { "column": 7, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT uniqueCount(sessionId) AS 'Sessions', count(*) AS 'Events', average(currentBitrate) AS 'Avg bitrate', average(totalBufferingTime) AS 'Avg buffering' FROM QoEMetric, PageAction WHERE actionName = 'QoEMetric' OR eventType() = 'QoEMetric' FACET videoId, platform SINCE 1 hour ago LIMIT 25" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Backend (Java APM)",
+      "description": "Spring Boot service-side view: HTTP throughput, DB latency, errors, and the QoEMetric custom events emitted by QoEMetricsService.recordNewRelicEvent.",
+      "widgets": [
+        {
+          "title": "Requests per minute",
+          "layout": { "column": 1, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT rate(count(*), 1 minute) AS 'rpm' FROM Transaction WHERE appName = 'Stream QoE API' TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Avg response time (ms)",
+          "layout": { "column": 5, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(duration) * 1000 AS 'avg ms', percentile(duration, 95) * 1000 AS 'p95 ms' FROM Transaction WHERE appName = 'Stream QoE API' TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Error rate %",
+          "layout": { "column": 9, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT percentage(count(*), WHERE error IS true) FROM Transaction WHERE appName = 'Stream QoE API' TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Top transactions by time spent",
+          "layout": { "column": 1, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) AS 'count', average(duration) * 1000 AS 'avg ms', percentile(duration, 95) * 1000 AS 'p95 ms' FROM Transaction WHERE appName = 'Stream QoE API' FACET name SINCE 1 hour ago LIMIT 25" }
+            ]
+          }
+        },
+        {
+          "title": "Database calls (avg ms)",
+          "layout": { "column": 7, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(databaseDuration) * 1000 AS 'db ms' FROM Transaction WHERE appName = 'Stream QoE API' AND databaseDuration IS NOT NULL TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Backend QoEMetric events / min",
+          "layout": { "column": 1, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric WHERE appName = 'Stream QoE API' FACET platform TIMESERIES 1 minute SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Backend QoEMetric: avg startup, buffering, bitrate",
+          "layout": { "column": 7, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(startupTime) AS 'startup ms', average(totalBufferingTime) AS 'buffering s', average(currentBitrate) AS 'bitrate bps', uniqueCount(sessionId) AS 'sessions' FROM QoEMetric WHERE appName = 'Stream QoE API' FACET platform SINCE 1 hour ago" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Web Player (Browser RUM)",
+      "description": "Browser-side view: page views, JS errors, core web vitals, and the QoEMetric PageActions emitted from web-player/src/services/qoeCollector.ts.",
+      "widgets": [
+        {
+          "title": "Page views",
+          "layout": { "column": 1, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM PageView WHERE appId = 1103499928 TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "JS error count",
+          "layout": { "column": 5, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM JavaScriptError WHERE appId = 1103499928 SINCE 1 hour ago" }
+            ],
+            "thresholds": [
+              { "alertSeverity": "WARNING",  "value": 1 },
+              { "alertSeverity": "CRITICAL", "value": 10 }
+            ]
+          }
+        },
+        {
+          "title": "Largest Contentful Paint (LCP) p75 ms",
+          "layout": { "column": 9, "row": 1, "width": 4, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT percentile(largestContentfulPaint, 75) AS 'LCP p75' FROM PageViewTiming WHERE appId = 1103499928 SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "QoEMetric PageActions per video",
+          "layout": { "column": 1, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.bar" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM PageAction WHERE actionName = 'QoEMetric' AND appId = 1103499928 FACET videoId SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "QoEMetric: avg buffering by quality",
+          "layout": { "column": 7, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.bar" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(totalBufferingTime) FROM PageAction WHERE actionName = 'QoEMetric' AND appId = 1103499928 FACET playbackQuality SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "QoEMetric latest sessions (raw)",
+          "layout": { "column": 1, "row": 7, "width": 12, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT timestamp, sessionId, videoId, playbackState, playbackQuality, currentTime, totalBufferingTime, currentBitrate, startupTimeMs FROM PageAction WHERE actionName = 'QoEMetric' AND appId = 1103499928 SINCE 1 hour ago LIMIT 50" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mobile (Android)",
+      "description": "Android-side view: app sessions, crashes, HTTP performance from the New Relic Mobile agent, and the QoEMetric custom events emitted from android-player/QoECollector via NewRelic.recordCustomEvent. The Mobile event types are filtered by appName='Stream QoE Android' (the name shown in NR Mobile → Apps); QoEMetric events are filtered by platform='android'.",
+      "widgets": [
+        {
+          "title": "Android QoEMetric events (last 1h)",
+          "layout": { "column": 1, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric WHERE platform = 'android' SINCE 1 hour ago" }
+            ],
+            "thresholds": [
+              { "alertSeverity": "CRITICAL", "value": 0 },
+              { "alertSeverity": "WARNING",  "value": 1 }
+            ]
+          }
+        },
+        {
+          "title": "Distinct Android sessions",
+          "layout": { "column": 4, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT uniqueCount(sessionId) AS 'Sessions' FROM QoEMetric WHERE platform = 'android' SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "App crashes",
+          "layout": { "column": 7, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM MobileCrash WHERE appName = 'Stream QoE Android' SINCE 1 hour ago" }
+            ],
+            "thresholds": [
+              { "alertSeverity": "WARNING",  "value": 1 },
+              { "alertSeverity": "CRITICAL", "value": 5 }
+            ]
+          }
+        },
+        {
+          "title": "HTTP error count",
+          "layout": { "column": 10, "row": 1, "width": 3, "height": 3 },
+          "visualization": { "id": "viz.billboard" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM MobileRequestError WHERE appName = 'Stream QoE Android' SINCE 1 hour ago" }
+            ],
+            "thresholds": [
+              { "alertSeverity": "WARNING",  "value": 1 },
+              { "alertSeverity": "CRITICAL", "value": 10 }
+            ]
+          }
+        },
+        {
+          "title": "QoEMetric events over time",
+          "layout": { "column": 1, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "legend": { "enabled": true },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT count(*) FROM QoEMetric WHERE platform = 'android' FACET playbackState TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "HTTP response time (avg / p95 ms)",
+          "layout": { "column": 7, "row": 4, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(responseTime) * 1000 AS 'avg ms', percentile(responseTime, 95) * 1000 AS 'p95 ms' FROM MobileRequest WHERE appName = 'Stream QoE Android' TIMESERIES SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Avg buffering by playback quality",
+          "layout": { "column": 1, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.bar" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT average(totalBufferingTime) AS 'Avg buffering (s)' FROM QoEMetric WHERE platform = 'android' FACET playbackQuality SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Sessions by device type / OS",
+          "layout": { "column": 7, "row": 7, "width": 6, "height": 3 },
+          "visualization": { "id": "viz.pie" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT uniqueCount(sessionId) FROM QoEMetric WHERE platform = 'android' FACET deviceType, os SINCE 1 hour ago" }
+            ]
+          }
+        },
+        {
+          "title": "Top Android videos by sessions",
+          "layout": { "column": 1, "row": 10, "width": 12, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT uniqueCount(sessionId) AS 'Sessions', count(*) AS 'Events', average(currentBitrate) AS 'Avg bitrate', average(totalBufferingTime) AS 'Avg buffering (s)', sum(bitrateSwitches) AS 'Bitrate switches', sum(errorCount) AS 'Errors' FROM QoEMetric WHERE platform = 'android' FACET videoId SINCE 1 hour ago LIMIT 25" }
+            ]
+          }
+        },
+        {
+          "title": "QoEMetric latest events (raw)",
+          "layout": { "column": 1, "row": 13, "width": 12, "height": 3 },
+          "visualization": { "id": "viz.table" },
+          "rawConfiguration": {
+            "facet": { "showOtherSeries": false },
+            "nrqlQueries": [
+              { "accountId": 7996933,
+                "query": "SELECT timestamp, sessionId, videoId, playbackState, playbackQuality, currentTime, totalBufferingTime, currentBitrate, currentResolution, bitrateSwitches, errorCount, startupTimeMs, deviceType, os FROM QoEMetric WHERE platform = 'android' SINCE 1 hour ago LIMIT 50" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

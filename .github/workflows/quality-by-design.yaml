@@ -1,0 +1,153 @@
+name: Quality by Design
+
+# PlatformCon workshop pipeline using QoE sample apps:
+#   backend-api + web-player (+ existing android/ios per-platform pipelines)
+#
+# Gate chain:
+#   unit → contract → integration (BAT) → ephemeral env → smoke → perf smoke → promote
+#   DevSecOps defaults run in parallel
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend-api/**'
+      - 'web-player/**'
+      - 'platform/**'
+      - 'docs/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/reusable-*.yaml'
+      - '.github/workflows/quality-by-design.yaml'
+      - '.github/actions/evaluate-jest-gate/**'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend-api/**'
+      - 'web-player/**'
+      - 'platform/**'
+      - 'docs/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/reusable-*.yaml'
+      - '.github/workflows/quality-by-design.yaml'
+      - '.github/actions/evaluate-jest-gate/**'
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+concurrency:
+  group: qbd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  devsecops:
+    name: DevSecOps Defaults
+    uses: ./.github/workflows/reusable-devsecops.yaml
+
+  test-gates:
+    name: Backend Test Gates
+    uses: ./.github/workflows/reusable-test-gates.yaml
+
+  web-unit:
+    name: Web Player Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install & test web-player
+        id: web
+        working-directory: web-player
+        run: |
+          npm install
+          npm test
+
+      - name: Evaluate web unit gate
+        if: always()
+        uses: ./.github/actions/evaluate-jest-gate
+        with:
+          test-outcome: ${{ steps.web.outcome }}
+          stage-name: Web unit tests
+
+  ephemeral-validation:
+    name: Ephemeral Env Validation
+    needs: test-gates
+    if: needs.test-gates.outputs.all_passed == 'true'
+    uses: ./.github/workflows/reusable-ephemeral-validation.yaml
+    with:
+      pr_id: ${{ github.event.pull_request.number || github.run_id }}
+
+  promote:
+    name: Promotion Gate
+    runs-on: ubuntu-latest
+    needs: [devsecops, test-gates, web-unit, ephemeral-validation]
+    if: always()
+    outputs:
+      passed: ${{ steps.decide.outputs.passed }}
+    steps:
+      - name: Evaluate promotion
+        id: decide
+        run: |
+          DEVSEC="${{ needs.devsecops.outputs.passed }}"
+          TESTS="${{ needs.test-gates.outputs.all_passed }}"
+          WEB="${{ needs.web-unit.result }}"
+          EPHEMERAL="${{ needs.ephemeral-validation.outputs.all_passed }}"
+          if [ "$DEVSEC" = "true" ] && [ "$TESTS" = "true" ] && [ "$WEB" = "success" ] && [ "$EPHEMERAL" = "true" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+  pr-comment:
+    name: PR Feedback
+    runs-on: ubuntu-latest
+    needs: [devsecops, test-gates, web-unit, ephemeral-validation, promote]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate PR summary
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          STAGE_DEVSECOPS: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          STAGE_UNIT: ${{ needs.test-gates.outputs.unit_passed == 'true' && 'success' || 'failure' }}
+          STAGE_CONTRACT: ${{ needs.test-gates.outputs.contract_passed == 'true' && 'success' || 'failure' }}
+          STAGE_INTEGRATION: ${{ needs.test-gates.outputs.integration_passed == 'true' && 'success' || 'failure' }}
+          STAGE_WEB: ${{ needs.web-unit.result }}
+          STAGE_SMOKE: ${{ needs.ephemeral-validation.outputs.smoke_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE_PERF: ${{ needs.ephemeral-validation.outputs.perf_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE_PROMOTE: ${{ needs.promote.outputs.passed == 'true' && 'success' || 'failure' }}
+        run: python3 platform/scripts/pr-summary.py
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('pr-comment.md', 'utf8');
+            const MARKER = '<!-- qbd-pipeline -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

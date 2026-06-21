@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: qoe-postgres
+    environment:
+      POSTGRES_USER: qoe_user
+      POSTGRES_PASSWORD: qoe_password
+      POSTGRES_DB: qoe_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend-api/src/main/resources/db/migration:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qoe_user -d qoe_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      # Repo root context so the Dockerfile can COPY the shared
+      # ops/monitoring/newrelic/newrelic.yml into the runtime image.
+      context: .
+      dockerfile: backend-api/Dockerfile
+    container_name: qoe-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/qoe_db
+      SPRING_DATASOURCE_USERNAME: qoe_user
+      SPRING_DATASOURCE_PASSWORD: qoe_password
+      # New Relic Java APM — opt-in. Set NEWRELIC_ENABLED=true and supply a
+      # license key to attach the agent at startup (see backend-api/docker-entrypoint.sh).
+      NEWRELIC_ENABLED:     ${NEWRELIC_ENABLED:-false}
+      NEWRELIC_LICENSE_KEY: ${NEWRELIC_LICENSE_KEY:-}
+      NEWRELIC_APP_NAME:    ${NEWRELIC_APP_NAME:-QoE API}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web-player:
+    build:
+      context: .
+      dockerfile: web-player/Dockerfile
+      # Vite inlines VITE_* env vars at build time, so they must be passed as
+      # build args (not runtime env). Anything blank => the NR Browser agent
+      # stays disabled at runtime (see web-player/src/services/newrelic.ts).
+      args:
+        VITE_NEWRELIC_LICENSE_KEY:    ${VITE_NEWRELIC_LICENSE_KEY:-}
+        VITE_NEWRELIC_APPLICATION_ID: ${VITE_NEWRELIC_APPLICATION_ID:-}
+        VITE_NEWRELIC_ACCOUNT_ID:     ${VITE_NEWRELIC_ACCOUNT_ID:-}
+        VITE_NEWRELIC_TRUST_KEY:      ${VITE_NEWRELIC_TRUST_KEY:-}
+        VITE_NEWRELIC_AGENT_ID:       ${VITE_NEWRELIC_AGENT_ID:-}
+    container_name: qoe-web-player
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: qoe-nginx
+    ports:
+      - "8081:80"
+    volumes:
+      - ./ops/infrastructure/server/nginx.conf:/etc/nginx/nginx.conf
+      - ./ops/infrastructure/test-content:/usr/share/nginx/html/videos
+    depends_on:
+      - web-player
+
+volumes:
+  postgres_data:

@@ -1,0 +1,7 @@
+{
+  "appdistribution": {
+    "appId": "YOUR_FIREBASE_ANDROID_APP_ID",
+    "releaseNotes": "Debug build from local workspace",
+    "groups": ["testers"]
+  }
+}

@@ -1,0 +1,73 @@
+name: 'Slack Gate Decision Notification'
+description: >
+  Post a quality-gate pass/fail decision as a Slack thread reply.
+  Used after unit-gate and BAT-gate evaluations in every module pipeline
+  (API, WEB, ANDROID, iOS) — single implementation, zero duplication.
+
+inputs:
+  gate-passed:
+    description: '"true" when gate passed, "false" when blocked'
+    required: true
+  proceed-message:
+    description: 'Slack mrkdwn text shown when the gate passes'
+    required: true
+  blocked-message:
+    description: 'Slack mrkdwn text shown when the gate fails'
+    required: true
+  thread-ts:
+    description: 'Slack thread timestamp — reply is posted into this thread'
+    required: true
+  slack-bot-token:
+    description: 'Slack bot OAuth token'
+    required: true
+  slack-channel-id:
+    description: 'Slack channel ID'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post gate decision to Slack
+      if: inputs.slack-bot-token != '' && inputs.slack-channel-id != ''
+      shell: bash
+      env:
+        GATE_PASSED:       ${{ inputs.gate-passed }}
+        PROCEED_MSG:       ${{ inputs.proceed-message }}
+        BLOCKED_MSG:       ${{ inputs.blocked-message }}
+        THREAD_TS:         ${{ inputs.thread-ts }}
+        SLACK_BOT_TOKEN:   ${{ inputs.slack-bot-token }}
+        SLACK_CHANNEL_ID:  ${{ inputs.slack-channel-id }}
+        GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        GITHUB_RUN_ID:     ${{ github.run_id }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        python3 - <<'PYEOF'
+        import json, os, pathlib
+
+        passed   = os.environ.get("GATE_PASSED", "false").lower() == "true"
+        icon     = "\u2705" if passed else "\U0001f6ab"       # ✅ / 🚫
+        msg      = os.environ["PROCEED_MSG"] if passed else os.environ["BLOCKED_MSG"]
+        repo     = os.environ.get("GITHUB_REPOSITORY", "")
+        run_id   = os.environ.get("GITHUB_RUN_ID", "")
+        run_no   = os.environ.get("GITHUB_RUN_NUMBER", "")
+        run_url  = f"https://github.com/{repo}/actions/runs/{run_id}"
+
+        payload = {
+            "channel":      os.environ.get("SLACK_CHANNEL_ID", ""),
+            "thread_ts":    os.environ.get("THREAD_TS", ""),
+            "unfurl_links": False,
+            "unfurl_media": False,
+            "blocks": [
+                {"type": "section",
+                 "text": {"type": "mrkdwn", "text": f"{icon} {msg}"}},
+                {"type": "context",
+                 "elements": [{"type": "mrkdwn",
+                    "text": f"Build #{run_no} \u00b7 <{run_url}|View run>"}]},
+            ],
+        }
+        pathlib.Path("gate-payload.json").write_text(json.dumps(payload))
+        PYEOF
+        curl -sf -X POST https://slack.com/api/chat.postMessage \
+          -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d @gate-payload.json

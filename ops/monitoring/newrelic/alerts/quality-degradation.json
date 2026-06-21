@@ -1,0 +1,21 @@
+{
+  "name": "QoE Quality Degradation",
+  "type": "static",
+  "condition": {
+    "terms": [
+      {
+        "duration": "5",
+        "operator": "above",
+        "priority": "critical",
+        "threshold": "0.5",
+        "time_function": "all"
+      }
+    ],
+    "nrql": {
+      "query": "SELECT filter(count(*), WHERE playbackQuality = 'poor') / count(*) FROM QoEMetric WHERE timestamp >= SINCE 5 minutes ago FACET platform"
+    }
+  },
+  "enabled": true,
+  "violation_time_limit_seconds": 3600,
+  "notification_channels": []
+}

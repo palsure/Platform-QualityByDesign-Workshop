@@ -1,0 +1,1520 @@
+# Stream-QoE-App-Android
+#
+# Pipeline flow — internal release goes out as soon as the build is green
+# (Unit gate + Lint), BAT validates the artifact ALREADY on Firebase, and
+# only on a green BAT do we promote to the public channel + run Smoke
+# against the public release:
+#
+#   notify-start ──┬─→ unit-tests (gate ≥80%) ─┐
+#                  └─→ lint ───────────────────┴─→ build APK
+#                                                     ▼
+#                                            publish-internal (Firebase)
+#                                                     ▼
+#                                            bat-e2e ─→ BAT gate
+#                                                     ▼ (gate passed)
+#                                            publish-public (Firebase)
+#                                                     ▼
+#                                              smoke-e2e
+#
+#   0. notify-start     — Post "build started" to Slack.
+#   1. unit-tests       — JUnit4 + MockK; inline unit gate (≥80%).
+#   2. lint             — Android Lint (runs in parallel with unit-tests).
+#   3. build            — Assemble debug APK + androidTest APK; gated on
+#                         unit gate AND lint passing.
+#   4. publish-internal — Canary release to Firebase internal-testers.
+#                         Runs immediately after build — internal-testers
+#                         are the audience that catches device issues.
+#   5. bat-e2e          — @BAT Espresso tests against the internally-released
+#                         build; dual-mode runner (LambdaTest / KVM emulator).
+#   5b. bat-skip-notice — Slack-only sibling for the SKIP_BAT path.
+#   6. quality-gate     — On HARD BAT failure: block public promotion.
+#                         (Internal release stays live; that is intentional.)
+#   7. publish-public   — Promote to public-testers ONLY after BAT pass
+#                         (or soft-gated skip). No more workflow_dispatch
+#                         constraint — promotion is automatic on green BAT.
+#   8. smoke-e2e        — @Smoke against the public-released build; runs
+#                         after publish-public. Dual-mode runner.
+#   9. regression-e2e   — @Regression; nightly schedule only; non-blocking.
+#  10. report           — Slack summary + update initial message.
+#
+# DUAL-MODE BAT/SMOKE RUNNER
+# ──────────────────────────
+# bat-e2e and smoke-e2e pick their runner at job-resolution time based on
+# whether `vars.LT_USERNAME` is set:
+#
+#   • LambdaTest (real-device cloud) — vars.LT_USERNAME is set
+#       runs-on: ubuntu-latest
+#       Uploads the prebuilt APKs to LambdaTest, runs Espresso on a real
+#       Android phone (default Pixel 6 Pro-13), polls for completion, and
+#       downloads JUnit XML for the existing Allure / Slack flow.
+#
+#   • Local emulator — vars.LT_USERNAME is empty
+#       runs-on: ubuntu-latest (KVM-accelerated x86_64 AVD)
+#       Boots a cached AVD snapshot and runs `connectedDebugAndroidTest`.
+#       Migrated off macos-13 because the macOS hosted-runner queue can
+#       sit at "Waiting for a runner..." for 10-15 min during peak hours.
+#
+# Both paths are SOFT-GATED: if the device is unavailable (no JUnit XML
+# produced) the gate emits 'skipped' and Firebase deploy still proceeds
+# based on the Unit gate alone. Hard test failures continue to block.
+#
+# Required secrets (Slack steps are skipped when not set):
+#   SLACK_BOT_TOKEN       — Slack bot OAuth token
+#   SLACK_CHANNEL_ID      — Target Slack channel ID
+# Optional secrets:
+#   FIREBASE_TOKEN        — Firebase CI token
+#   FIREBASE_PROJECT_ID   — Firebase project ID
+#   FIREBASE_APP_ID_ANDROID — Firebase App ID for App Distribution
+#   FIREBASE_TESTERS      — Comma-separated list of tester emails
+#   LT_ACCESS_KEY         — LambdaTest access key (required for LT path)
+# Optional repository Variables (vars context):
+#   LT_USERNAME           — LambdaTest username; presence enables LT path
+#   LT_DEVICE_ANDROID     — Device name (default "Pixel 6 Pro-13")
+#   LT_REGION             — LT region: us | eu | in (default us)
+
+name: Stream-QoE-App-Android
+
+on:
+  pull_request:
+    paths:
+      - 'android-player/**'
+      - '.github/workflows/stream-qoe-app-android.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'android-player/**'
+      - '.github/workflows/stream-qoe-app-android.yml'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests and force-publish to Firebase (hotfix mode)'
+        required: false
+        default: false
+        type: boolean
+      skip_bat:
+        description: 'Skip BAT only (device lab unavailable) — Unit tests still run, Firebase deploy still proceeds on the Unit gate.'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'Target environment (STAGE / PROD)'
+        required: false
+        default: 'STAGE'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  QUALITY_GATE_THRESHOLD: '80'
+  ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+  # Exposed at workflow level so the publish-internal / publish-public
+  # step-level `if: env.FIREBASE_TOKEN != ''` checks can see them.
+  # Step-level `if:` cannot access secrets directly nor a step's own env.
+  FIREBASE_TOKEN:           ${{ secrets.FIREBASE_TOKEN }}
+  FIREBASE_APP_ID_ANDROID:  ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+  # Variable (NOT a secret) — used to construct a clickable Firebase
+  # Console URL in the publish-internal / publish-public Slack messages.
+  # Secrets get masked in URL tokens, so we use the project ID (which
+  # is already public Firebase metadata) as the safe URL anchor.
+  FIREBASE_PROJECT_ID:      ${{ vars.FIREBASE_PROJECT_ID }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0. NOTIFY START  (reusable workflow)
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  notify-start:
+    uses: ./.github/workflows/shared-notify-build-started.yml
+    with:
+      module-name:       ANDROID
+      # vars context is available in workflow-level inputs; the suffix
+      # tells reviewers at a glance which device farm a given run targeted.
+      pipeline-steps: >-
+        Unit ∥ Lint → Unit Gate → Build APK → Internal Firebase → BAT →
+        BAT Gate → Public Firebase → Smoke
+        ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
+      environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. UNIT TESTS — JUnit4 + MockK; Allure adapter; inline quality gate (≥80%)
+# ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: "Unit Tests (JUnit4)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [notify-start]
+    if: inputs.skip_tests != true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      gate_passed: ${{ steps.unit-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "UNIT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Default behaviour on feature branches is read-only — meaning
+          # the build job's resolved-dep cache never gets uploaded, and
+          # downstream BAT/Smoke/Regression jobs each re-resolve every
+          # plugin (~50 transitive deps) from Maven Central. That works
+          # right up until MC throttles the GitHub Actions IP block, at
+          # which point one job sails through and the next one fails
+          # with a wall of HTTP 403 Forbidden. Forcing writes from any
+          # branch lets the first job in the run prime the cache for
+          # the rest, so MC only has to be cooperative once per workflow.
+          cache-read-only: false
+
+      - name: Run unit tests
+        id: unit
+        # --parallel: run independent Gradle tasks concurrently
+        # --build-cache: re-use compile/test outputs from prior runs
+        # --max-workers=4: cap workers to runner vCPUs
+        # maxParallelForks (build.gradle.kts) parallelizes test classes within the test task
+        run: ./gradlew testDebugUnitTest --parallel --build-cache --max-workers=4
+        working-directory: android-player
+
+      - name: Calculate unit duration
+        if: always()
+        run: |
+          if [ "${UNIT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - UNIT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "UNIT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload unit test results (JUnit XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-junit
+          path: android-player/app/build/test-results/testDebugUnitTest/
+          retention-days: 14
+
+      - name: Generate & deploy unit Allure report
+        # publish-allure auto-detects JUnit XML and converts to Allure JSON
+        # via .github/scripts/junit_to_allure.py (the allure-junit4 adapter
+        # never registers as a JUnit listener under Gradle, so we feed the
+        # Gradle-emitted TEST-*.xml directly).
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Android Unit Tests"
+          results-src:        android-player/app/build/test-results/testDebugUnitTest
+          pages-destination:  allure/${{ github.run_number }}/android/unit
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Android Player"
+          allure-feature:     "Unit Tests"
+          allure-tag:         "Unit"
+          allure-language:    "kotlin"
+
+      - name: Notify Slack — unit test result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Unit Tests (JUnit4)"
+          stage-result:    ${{ steps.unit.outcome }}
+          duration:        ${{ env.UNIT_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/unit
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       android-player/app/build/test-results/testDebugUnitTest
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate unit quality gate (inline)
+        id: unit-gate
+        if: always()
+        env:
+          QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
+        run: |
+          UNIT="${{ steps.unit.outcome }}"
+          SKIP="${{ inputs.skip_tests }}"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "⚡ Hotfix mode — unit gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          if [ "$UNIT" != "success" ]; then
+            echo "❌ Unit tests did not succeed (result=$UNIT) — gate FAILED"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET, os
+          files = glob.glob("android-player/app/build/test-results/**/*.xml", recursive=True)
+          total = passed = failed = skipped = 0
+          for f in files:
+              try:
+                  root = ET.parse(f).getroot()
+                  suites = root.findall('testsuite') if root.tag == 'testsuites' else [root]
+                  for s in suites:
+                      t  = int(s.attrib.get("tests",    0))
+                      fa = int(s.attrib.get("failures", 0)) + int(s.attrib.get("errors", 0))
+                      sk = int(s.attrib.get("skipped",  0))
+                      total += t; failed += fa; skipped += sk; passed += max(0, t - fa - sk)
+              except Exception:
+                  pass
+
+          threshold = float(os.environ.get("QUALITY_GATE_THRESHOLD", "80"))
+          rate = (100.0 * passed / total) if total > 0 else 0.0
+          gate_ok = rate >= threshold and failed == 0
+
+          print(f"Unit gate: {passed}/{total} passed ({rate:.1f}%) — threshold {threshold}%")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+              gh.write(f"gate_passed={'true' if gate_ok else 'false'}\n")
+          if not gate_ok:
+              print(f"❌ FAILED — {rate:.1f}% < {threshold}% or {failed} test(s) failed")
+          else:
+              print(f"✅ PASSED — runs in parallel with build and BAT")
+          EOF
+
+      - name: Post unit gate decision to Slack
+        if: always()
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.unit-gate.outputs.gate_passed }}
+          proceed-message:  "Unit gate *PASSED* — runs in parallel with BAT (Firebase publish enforces this gate)."
+          blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. Firebase publish *BLOCKED* (BAT continues for diagnostics)."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. LINT — Kotlin static analysis; runs IN PARALLEL with unit tests
+# ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: "Lint"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start]
+
+    steps:
+      - name: Record job start time
+        run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Default behaviour on feature branches is read-only — meaning
+          # the build job's resolved-dep cache never gets uploaded, and
+          # downstream BAT/Smoke/Regression jobs each re-resolve every
+          # plugin (~50 transitive deps) from Maven Central. That works
+          # right up until MC throttles the GitHub Actions IP block, at
+          # which point one job sails through and the next one fails
+          # with a wall of HTTP 403 Forbidden. Forcing writes from any
+          # branch lets the first job in the run prime the cache for
+          # the rest, so MC only has to be cooperative once per workflow.
+          cache-read-only: false
+
+      - name: Run Android Lint
+        id: lint
+        run: ./gradlew lintDebug --parallel --build-cache --max-workers=4
+        working-directory: android-player
+
+      - name: Calculate lint duration
+        if: always()
+        run: |
+          if [ "${LINT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - LINT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "LINT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-report
+          path: android-player/app/build/reports/lint-results-debug.html
+          retention-days: 14
+
+      - name: Notify Slack — lint result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Lint"
+          stage-result:    ${{ steps.lint.outcome }}
+          duration:        ${{ env.LINT_DURATION }}
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. BUILD — Assemble debug APK; gated on Unit gate (≥80%) + Lint passing
+#    Industry-standard fail-fast: don't waste runner minutes building if the
+#    code didn't pass its own tests/lint.
+# ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: "Build APK"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [notify-start, unit-tests, lint]
+    if: |
+      always() &&
+      inputs.skip_tests != true &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.lint.result == 'success'
+
+    steps:
+      - name: Record job start time
+        run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Default behaviour on feature branches is read-only — meaning
+          # the build job's resolved-dep cache never gets uploaded, and
+          # downstream BAT/Smoke/Regression jobs each re-resolve every
+          # plugin (~50 transitive deps) from Maven Central. That works
+          # right up until MC throttles the GitHub Actions IP block, at
+          # which point one job sails through and the next one fails
+          # with a wall of HTTP 403 Forbidden. Forcing writes from any
+          # branch lets the first job in the run prime the cache for
+          # the rest, so MC only has to be cooperative once per workflow.
+          cache-read-only: false
+
+      - name: Assemble debug APK
+        id: build
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --parallel --build-cache --max-workers=4
+        working-directory: android-player
+
+      - name: Calculate build duration
+        if: always()
+        run: |
+          if [ "${BUILD_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - BUILD_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "BUILD_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: |
+            android-player/app/build/outputs/apk/debug/app-debug.apk
+            android-player/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          retention-days: 7
+
+      - name: Notify Slack — build result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Build APK"
+          stage-result:    ${{ steps.build.outcome }}
+          duration:        ${{ env.BUILD_DURATION }}
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. BAT E2E — @BAT Espresso tests; inline BAT gate
+#
+#    Always runs on ubuntu-latest (no macOS queue wait). Two paths inside:
+#      • LambdaTest path  (vars.LT_USERNAME set)  → real device on LT cloud
+#      • Emulator path    (vars.LT_USERNAME unset) → KVM-accelerated x86_64
+#                                                     AVD on the same runner
+#
+#    Why ubuntu-latest for both?
+#      - macOS hosted runners regularly queue 5-15 min on standard plans,
+#        which is what made earlier runs sit at "Waiting for a runner..."
+#        for 13+ minutes (today's incident).
+#      - GitHub-hosted ubuntu-latest exposes /dev/kvm, so the Android
+#        x86_64 emulator runs hardware-accelerated, just like on macos-13.
+#      - ubuntu-latest is x86_64, dodging the aarch64 incompatibility that
+#        forced us off macos-latest in the first place.
+#
+#    Required when using the LambdaTest path:
+#      vars.LT_USERNAME       LambdaTest username (repository Variable)
+#      secrets.LT_ACCESS_KEY  LambdaTest access key (repository Secret)
+#    Optional:
+#      vars.LT_DEVICE_ANDROID Device name (default "Pixel 6 Pro-13")
+#      vars.LT_REGION         Region: us | eu | in (default us)
+#
+#    Both paths are soft-gated: if the device is unavailable the job still
+#    completes and downstream Firebase deploy proceeds based on the Unit
+#    gate. Hard test failures (tests ran but failed) still block.
+# ─────────────────────────────────────────────────────────────────────────────
+  bat-e2e:
+    name: "BAT — Build Acceptance Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # BAT validates the APK that has just been published to the Firebase
+    # internal channel. The local APK we install on the runner is the
+    # exact same artifact bytes (uploaded to Firebase by publish-internal),
+    # so we install it directly from the build artifact instead of doing a
+    # round-trip download from Firebase — same outcome, faster.
+    needs: [notify-start, build, unit-tests, publish-internal]
+    # Skip path:
+    #   • inputs.skip_bat = true (workflow_dispatch checkbox)  → skip
+    #   • vars.SKIP_BAT = 'true'  (repo Variable for "lab is down today") → skip
+    #   • [skip-bat] in commit message OR PR title → skip (per-run override)
+    # When the job is skipped this way, the bat-skip-notice sibling job
+    # below posts a Slack message ("device lab availability") and the rest
+    # of the pipeline (Smoke skipped, public Firebase deploy on Unit gate
+    # alone) follows the existing soft-gate logic.
+    if: |
+      inputs.skip_tests != true &&
+      inputs.skip_bat   != true &&
+      vars.SKIP_BAT     != 'true' &&
+      !contains(github.event.head_commit.message, '[skip-bat]') &&
+      !contains(github.event.pull_request.title, '[skip-bat]') &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.build.result == 'success' &&
+      needs.publish-internal.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      # 'true' = passed | 'false' = ran and failed | 'skipped' = device unavailable
+      gate_passed: ${{ steps.bat-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "BAT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      # Java is needed by the emulator path (gradle test exec). LambdaTest
+      # path doesn't need it but the setup is cheap (~10s) and harmless.
+      - uses: actions/setup-java@v4
+        if: vars.LT_USERNAME == ''
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        if: vars.LT_USERNAME == ''
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # See cache-read-only commentary on the build job — same reasoning:
+          # let this run's first Gradle job populate the cache so MC only has
+          # to cooperate once per workflow instead of once per job.
+          cache-read-only: false
+
+      # ─── LambdaTest path ─────────────────────────────────────────────────
+      # Real-device cloud run — uploads APKs, dispatches via REST, polls,
+      # downloads JUnit XML into the same directory the emulator path would.
+      - name: Download prebuilt APKs (LambdaTest path)
+        if: vars.LT_USERNAME != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android-player/app/build/outputs/apk
+
+      - name: Run BAT on LambdaTest (real device)
+        id: bat-lt
+        if: vars.LT_USERNAME != ''
+        continue-on-error: true
+        uses: ./.github/actions/lambdatest-espresso
+        with:
+          lt-username:    ${{ vars.LT_USERNAME }}
+          lt-access-key:  ${{ secrets.LT_ACCESS_KEY }}
+          app-apk:        android-player/app/build/outputs/apk/debug/app-debug.apk
+          test-apk:       android-player/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          annotation:     com.devopsdays.qoe.player.categories.BAT
+          build-name:     "Android BAT — Build #${{ github.run_number }} (${{ github.head_ref || github.ref_name }})"
+          device:         ${{ vars.LT_DEVICE_ANDROID || 'Pixel 6 Pro-13' }}
+          output-dir:     android-player/app/build/outputs/androidTest-results/connected
+          region:         ${{ vars.LT_REGION || 'us' }}
+
+      # ─── Emulator path (KVM-accelerated x86_64 AVD on ubuntu-latest) ─────
+      - name: Enable KVM permissions
+        if: vars.LT_USERNAME == ''
+        run: |
+          # ubuntu-latest exposes /dev/kvm but the runner user needs the
+          # right udev rule to access it without sudo. Canonical setup
+          # recommended by reactivecircus/android-emulator-runner.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: AVD cache
+        if: vars.LT_USERNAME == ''
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          # Fresh namespace for the ubuntu runner — old macos-13 cache is
+          # binary-compatible (x86_64 AVD), but a new key avoids any subtle
+          # ABI / SDK-path differences across host toolchains.
+          key: avd-bat-api33-x86_64-ubuntu-v1
+
+      - name: Create AVD snapshot (cache miss only)
+        if: vars.LT_USERNAME == '' && steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6000M
+          force-avd-creation: false
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: false
+          script: echo "AVD snapshot generated and cached"
+
+      - name: Run BAT tests on emulator
+        id: bat-emu
+        if: vars.LT_USERNAME == ''
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6000M
+          force-avd-creation: false
+          # 5-min boot budget. KVM-accelerated boot on ubuntu-latest is
+          # ~60-90 s cold, ~30-45 s warm with the AVD cache primed. If the
+          # device isn't ready in time the gate step labels it 'skipped'
+          # and Firebase deploy proceeds on the Unit gate alone.
+          emulator-boot-timeout: 300
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: android-player
+          # Retry wrapper is here for one specific failure mode: Maven
+          # Central rate-limits the GitHub Actions IP pool and randomly
+          # 403s POM lookups during dependency resolution. When that
+          # happens the whole build fails before a single test runs.
+          # 3 attempts × 30 s back-off has empirically been enough to
+          # ride out the throttling window. The mirror in build.gradle.kts
+          # absorbs most of the noise; this is the belt-and-suspenders.
+          script: |
+            for attempt in 1 2 3; do
+              ./gradlew connectedDebugAndroidTest -PtestStage=bat --parallel --build-cache --max-workers=4 && exit 0
+              rc=$?
+              echo "::warning title=Gradle retry::BAT attempt ${attempt} failed (exit ${rc}); retrying in 30 s..."
+              sleep 30
+            done
+            exit 1
+
+      # ─── Common: post-test reporting ─────────────────────────────────────
+      - name: Calculate BAT duration
+        if: always()
+        run: |
+          if [ "${BAT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - BAT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "BAT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload BAT test results (JUnit XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bat-junit
+          path: android-player/app/build/outputs/androidTest-results/connected/
+          retention-days: 14
+
+      - name: Generate & deploy BAT Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Android BAT"
+          results-src:        android-player/app/build/outputs/androidTest-results/connected
+          pages-destination:  allure/${{ github.run_number }}/android/bat
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Android Player E2E"
+          allure-feature:     "Build Acceptance Tests"
+          allure-tag:         "BAT"
+          allure-language:    "kotlin"
+
+      - name: Notify Slack — BAT result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "BAT (Build Acceptance Tests)${{ vars.LT_USERNAME != '' && ' on LambdaTest' || '' }}"
+          stage-result:    ${{ vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome }}
+          duration:        ${{ env.BAT_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/bat
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       android-player/app/build/outputs/androidTest-results/connected
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate BAT quality gate (inline)
+        id: bat-gate
+        if: always()
+        run: |
+          set -uo pipefail
+          # Pick the outcome from whichever path actually ran (the other one
+          # was skipped via `if:` and reports outcome='skipped').
+          if [ "${{ vars.LT_USERNAME }}" != "" ]; then
+            BAT="${{ steps.bat-lt.outcome }}"
+          else
+            BAT="${{ steps.bat-emu.outcome }}"
+          fi
+          SKIP="${{ inputs.skip_tests }}"
+          NO_LAB="${{ vars.NO_DEVICE_LAB }}"
+          RESULTS_DIR="android-player/app/build/outputs/androidTest-results/connected"
+
+          # ── Count tests that ACTUALLY ran ────────────────────────────────
+          # An XML stub from a failed Gradle/emulator boot can have
+          # tests="0" — file existence alone is not enough. Sum the
+          # tests="N" attribute across every JUnit XML; if the total is 0
+          # we know nothing executed → device lab unavailable → skipped.
+          TOTAL_TESTS=0
+          if [ -d "$RESULTS_DIR" ]; then
+            while IFS= read -r xml; do
+              [ -f "$xml" ] || continue
+              # First tests="N" attribute on the <testsuite>/<testsuites> root
+              n=$(grep -oE 'tests="[0-9]+"' "$xml" | head -1 | grep -oE '[0-9]+' || echo 0)
+              TOTAL_TESTS=$(( TOTAL_TESTS + ${n:-0} ))
+            done < <(find "$RESULTS_DIR" -type f -name '*.xml' 2>/dev/null)
+          fi
+          echo "BAT step outcome: $BAT  |  tests executed: $TOTAL_TESTS"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "Hotfix mode — BAT gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$NO_LAB" = "true" ]; then
+            # Explicit operator override: workshop/demo with no device lab.
+            # Reports SKIPPED in the chain (not FAILED) so the pipeline
+            # demonstrates the soft-gate path on the green Unit gate.
+            echo "BAT SKIPPED — vars.NO_DEVICE_LAB=true (no device lab in this environment)"
+            echo "gate_passed=skipped" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "success" ]; then
+            echo "BAT gate PASSED — Smoke tests can start"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$TOTAL_TESTS" -eq 0 ]; then
+            # Device never came up, runner crashed before tests ran, or
+            # Gradle wrote a 0-test stub. Treat as device unavailable so
+            # Firebase deployment proceeds on the Unit gate alone.
+            echo "BAT SKIPPED — no tests executed (device unavailable)"
+            echo "    Firebase deploy proceeds on the Unit gate alone."
+            echo "gate_passed=skipped" >> "$GITHUB_OUTPUT"
+          else
+            echo "BAT gate FAILED (bat=$BAT, tests=$TOTAL_TESTS) — tests ran and reported failures."
+            echo "    Public promotion and Smoke are BLOCKED."
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post BAT gate decision to Slack
+        if: always() && steps.bat-gate.outputs.gate_passed != 'skipped'
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.bat-gate.outputs.gate_passed }}
+          proceed-message:  "BAT gate *PASSED* — running Smoke tests…"
+          blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Post BAT skipped notice to Slack (device unavailable)
+        if: always() && steps.bat-gate.outputs.gate_passed == 'skipped'
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      'true'
+          proceed-message:  "BAT *SKIPPED* — Android device unavailable${{ vars.LT_USERNAME != '' && ' on LambdaTest' || ' (emulator did not boot within 5 min)' }}. Proceeding to Firebase based on the Unit test gate."
+          blocked-message:  ""
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4b. BAT SKIP NOTICE — pre-flight skip when the device lab is unavailable
+#
+# Runs in PARALLEL with bat-e2e on a cheap ubuntu-latest runner. Only one of
+# the two will execute on any given run because their `if:` conditions are
+# mutually exclusive (skip_bat / vars.SKIP_BAT).
+#
+# Use this when:
+#   • The macos-13 emulator queue is backed up (today's case — workflow
+#     stuck >40 min waiting for a runner) and you just want Firebase to ship.
+#   • LambdaTest is throttling / device pool exhausted.
+#   • You're doing a docs-only or config-only change and BAT adds no value.
+#
+# Two ways to trigger:
+#   workflow_dispatch:  tick the "skip_bat" checkbox
+#   long-term outage:   Settings → Variables → SKIP_BAT = true
+#                       (flip back to false / delete when the lab is back)
+# ─────────────────────────────────────────────────────────────────────────────
+  bat-skip-notice:
+    name: "BAT — Skipped (device lab unavailable)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [notify-start, build, unit-tests, publish-internal]
+    if: |
+      (inputs.skip_bat == true ||
+       vars.SKIP_BAT == 'true' ||
+       contains(github.event.head_commit.message, '[skip-bat]') ||
+       contains(github.event.pull_request.title, '[skip-bat]')) &&
+      inputs.skip_tests != true &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.build.result == 'success' &&
+      needs.publish-internal.result == 'success'
+    steps:
+      - name: Log skip reason
+        run: |
+          echo "::notice title=BAT skipped::Android device lab unavailable — "\
+               "BAT stage skipped. Smoke is also skipped; Firebase deploy "\
+               "proceeds on the Unit gate alone (≥${{ env.QUALITY_GATE_THRESHOLD }}% pass rate)."
+
+      - name: Post Slack notice — skipped due to device lab availability
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      'true'
+          proceed-message:  ":warning: BAT *SKIPPED* — Android device lab unavailable (skip flag set${{ vars.SKIP_BAT == 'true' && ' via repo variable SKIP_BAT' || ' via workflow_dispatch input' }}). Proceeding to Firebase based on the Unit test gate."
+          blocked-message:  ""
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. SMOKE E2E — @Smoke Espresso tests; after BAT gate passes
+#
+#    Same dual-mode runner selection as bat-e2e — see the BAT job header
+#    for required vars/secrets and the device-unavailable behaviour.
+# ─────────────────────────────────────────────────────────────────────────────
+  smoke-e2e:
+    name: "Smoke Tests"
+    # ubuntu-latest for both LT and emulator paths (no macOS queue wait).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Smoke validates the APK that has just been promoted to the public
+    # Firebase channel. Same artifact bytes as internal — publishing is a
+    # promotion, not a rebuild — so we install from the build artifact
+    # (faster than a Firebase round-trip), but the dependency on
+    # publish-public makes the sequencing clear in the pipeline graph.
+    needs: [notify-start, build, bat-e2e, publish-public]
+    if: |
+      needs.bat-e2e.outputs.gate_passed == 'true' &&
+      needs.build.result == 'success' &&
+      needs.publish-public.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Record job start time
+        run: echo "SMOKE_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        if: vars.LT_USERNAME == ''
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        if: vars.LT_USERNAME == ''
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # See cache-read-only commentary on the build job — same reasoning:
+          # let this run's first Gradle job populate the cache so MC only has
+          # to cooperate once per workflow instead of once per job.
+          cache-read-only: false
+
+      # ─── LambdaTest path ─────────────────────────────────────────────────
+      - name: Download prebuilt APKs (LambdaTest path)
+        if: vars.LT_USERNAME != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android-player/app/build/outputs/apk
+
+      - name: Run Smoke on LambdaTest (real device)
+        id: smoke-lt
+        if: vars.LT_USERNAME != ''
+        continue-on-error: true
+        uses: ./.github/actions/lambdatest-espresso
+        with:
+          lt-username:    ${{ vars.LT_USERNAME }}
+          lt-access-key:  ${{ secrets.LT_ACCESS_KEY }}
+          app-apk:        android-player/app/build/outputs/apk/debug/app-debug.apk
+          test-apk:       android-player/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          annotation:     com.devopsdays.qoe.player.categories.Smoke
+          build-name:     "Android Smoke — Build #${{ github.run_number }} (${{ github.head_ref || github.ref_name }})"
+          device:         ${{ vars.LT_DEVICE_ANDROID || 'Pixel 6 Pro-13' }}
+          output-dir:     android-player/app/build/outputs/androidTest-results/connected
+          region:         ${{ vars.LT_REGION || 'us' }}
+
+      # ─── Emulator path (KVM-accelerated x86_64 AVD on ubuntu-latest) ─────
+      - name: Enable KVM permissions
+        if: vars.LT_USERNAME == ''
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        if: vars.LT_USERNAME == ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-bat-api33-x86_64-ubuntu-v1
+
+      - name: Run Smoke tests on emulator
+        id: smoke-emu
+        if: vars.LT_USERNAME == ''
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6000M
+          force-avd-creation: false
+          emulator-boot-timeout: 300
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: android-player
+          # Same 403-recovery wrapper as the BAT job — see commentary there.
+          script: |
+            for attempt in 1 2 3; do
+              ./gradlew connectedDebugAndroidTest -PtestStage=smoke --parallel --build-cache --max-workers=4 && exit 0
+              rc=$?
+              echo "::warning title=Gradle retry::Smoke attempt ${attempt} failed (exit ${rc}); retrying in 30 s..."
+              sleep 30
+            done
+            exit 1
+
+      # ─── Common: post-test reporting ─────────────────────────────────────
+      - name: Calculate Smoke duration
+        if: always()
+        run: |
+          if [ "${SMOKE_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - SMOKE_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "SMOKE_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload Smoke test results (JUnit XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke-junit
+          path: android-player/app/build/outputs/androidTest-results/connected/
+          retention-days: 14
+
+      - name: Generate & deploy Smoke Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Android Smoke"
+          results-src:        android-player/app/build/outputs/androidTest-results/connected
+          pages-destination:  allure/${{ github.run_number }}/android/smoke
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Android Player E2E"
+          allure-feature:     "Smoke Tests"
+          allure-tag:         "Smoke"
+          allure-language:    "kotlin"
+
+      - name: Compute Smoke outcome (LT or emulator)
+        id: smoke
+        if: always()
+        run: |
+          if [ "${{ vars.LT_USERNAME }}" != "" ]; then
+            OUT="${{ steps.smoke-lt.outcome }}"
+          else
+            OUT="${{ steps.smoke-emu.outcome }}"
+          fi
+          echo "outcome=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack — Smoke result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Smoke Tests${{ vars.LT_USERNAME != '' && ' on LambdaTest' || '' }}"
+          stage-result:    ${{ steps.smoke.outputs.outcome }}
+          duration:        ${{ env.SMOKE_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/smoke
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       android-player/app/build/outputs/androidTest-results/connected
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Fail if Smoke tests failed
+        if: steps.smoke.outputs.outcome == 'failure'
+        run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. REGRESSION E2E — @Regression; nightly schedule or manual; non-blocking
+# ─────────────────────────────────────────────────────────────────────────────
+  regression-e2e:
+    name: "Regression Tests"
+    # ubuntu-latest with KVM-accelerated x86_64 AVD — no macOS queue wait.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [notify-start, build, smoke-e2e]
+    if: |
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.build.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Record job start time
+        run: echo "REGRESSION_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Default behaviour on feature branches is read-only — meaning
+          # the build job's resolved-dep cache never gets uploaded, and
+          # downstream BAT/Smoke/Regression jobs each re-resolve every
+          # plugin (~50 transitive deps) from Maven Central. That works
+          # right up until MC throttles the GitHub Actions IP block, at
+          # which point one job sails through and the next one fails
+          # with a wall of HTTP 403 Forbidden. Forcing writes from any
+          # branch lets the first job in the run prime the cache for
+          # the rest, so MC only has to be cooperative once per workflow.
+          cache-read-only: false
+
+      - name: Enable KVM permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-bat-api33-x86_64-ubuntu-v1
+
+      - name: Run Regression tests on emulator
+        id: regression
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          cores: 3
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6000M
+          force-avd-creation: false
+          emulator-boot-timeout: 300
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: android-player
+          # Same 403-recovery wrapper as the BAT job — see commentary there.
+          script: |
+            for attempt in 1 2 3; do
+              ./gradlew connectedDebugAndroidTest -PtestStage=regression --parallel --build-cache --max-workers=4 && exit 0
+              rc=$?
+              echo "::warning title=Gradle retry::Regression attempt ${attempt} failed (exit ${rc}); retrying in 30 s..."
+              sleep 30
+            done
+            exit 1
+
+      - name: Calculate Regression duration
+        if: always()
+        run: |
+          if [ "${REGRESSION_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - REGRESSION_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "REGRESSION_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload Regression test results (JUnit XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-regression-junit
+          path: android-player/app/build/outputs/androidTest-results/connected/
+          retention-days: 14
+
+      - name: Generate & deploy Regression Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Android Regression"
+          results-src:        android-player/app/build/outputs/androidTest-results/connected
+          pages-destination:  allure/${{ github.run_number }}/android/regression
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Android Player E2E"
+          allure-feature:     "Regression Tests"
+          allure-tag:         "Regression"
+          allure-language:    "kotlin"
+
+      - name: Notify Slack — Regression result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Regression Tests"
+          stage-result:    ${{ steps.regression.outcome }}
+          duration:        ${{ env.REGRESSION_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/regression
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       android-player/app/build/outputs/androidTest-results/connected
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. QUALITY GATE — BAT gate failed; block public promotion + alert team
+#
+#    NOTE on ordering: internal Firebase publish has already happened by the
+#    time this job runs (publish-internal is upstream of bat-e2e). A hard
+#    BAT failure does NOT roll back the internal release — internal-testers
+#    are the audience that catches device-level issues, so leaving the bad
+#    build accessible to them while we investigate is intentional. What we
+#    DO block is promotion to the public channel.
+# ─────────────────────────────────────────────────────────────────────────────
+  quality-gate:
+    name: "Quality Gate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [notify-start, bat-e2e]
+    # Only block public promotion on a HARD BAT failure (tests ran and
+    # reported failures). 'skipped' (device lab unavailable) is not a
+    # blocker — public promotion proceeds based on the Unit gate per the
+    # soft-gate policy.
+    if: always() && needs.bat-e2e.outputs.gate_passed == 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Block public promotion
+        run: |
+          echo "BAT gate failed — build #${{ github.run_number }} BLOCKED from public Firebase distribution"
+          echo "Internal release is still live for internal-testers — fix BAT and re-run to promote."
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.head_ref || github.ref_name }}"
+
+      - name: Notify Slack — public promotion blocked
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Public Promotion Blocked (BAT Gate Failed)"
+          stage-result:    failure
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. PUBLISH INTERNAL — Firebase App Distribution (internal testers)
+#
+#    Runs RIGHT AFTER build, BEFORE BAT/Smoke. The internal channel is our
+#    "canary" release: it goes out to internal-testers as soon as the code
+#    has passed unit + lint gates. BAT then validates the artifact that is
+#    actually live on Firebase, and only on a green BAT do we promote to
+#    the public channel (publish-public → smoke).
+# ─────────────────────────────────────────────────────────────────────────────
+  publish-internal:
+    name: "Publish Internal (Firebase)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, unit-tests, build]
+    # Gate policy: ship to internal as soon as the build is green and the
+    # Unit gate passes. We deliberately do NOT wait for BAT/Smoke here —
+    # internal-testers are the audience that catches device-level issues
+    # the unit suite cannot see.
+    if: |
+      always() &&
+      inputs.skip_tests != true &&
+      needs.build.result == 'success' &&
+      needs.unit-tests.outputs.gate_passed == 'true'
+
+    steps:
+      - name: Record job start time
+        run: echo "PUBLISH_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-debug-apk
+          path: apk-artifacts
+
+      - name: Resolve internal Firebase distribution targets
+        id: targets
+        # Pick exactly ONE of groups or testers. Passing both makes the
+        # wzieba action append both --groups and --testers to the
+        # firebase CLI, and a missing group causes a 404 even when the
+        # email list is valid. Order of preference:
+        #   1. Email list from vars.FIREBASE_INTERNAL_TESTERS
+        #   2. Email list from secrets.FIREBASE_INTERNAL_TESTERS
+        #   3. Group list from vars.FIREBASE_INTERNAL_GROUPS
+        #   4. Default group name 'internal-testers'
+        env:
+          VAR_TESTERS:    ${{ vars.FIREBASE_INTERNAL_TESTERS }}
+          SECRET_TESTERS: ${{ secrets.FIREBASE_INTERNAL_TESTERS }}
+          VAR_GROUPS:     ${{ vars.FIREBASE_INTERNAL_GROUPS }}
+        run: |
+          set -euo pipefail
+          TESTERS="${VAR_TESTERS:-${SECRET_TESTERS:-}}"
+          if [ -n "$TESTERS" ]; then
+            echo "testers=$TESTERS" >> "$GITHUB_OUTPUT"
+            echo "groups=" >> "$GITHUB_OUTPUT"
+            echo "Using testers email list (count: $(echo "$TESTERS" | tr ',' '\n' | wc -l | tr -d ' '))"
+          else
+            GROUPS="${VAR_GROUPS:-internal-testers}"
+            echo "groups=$GROUPS" >> "$GITHUB_OUTPUT"
+            echo "testers=" >> "$GITHUB_OUTPUT"
+            echo "Using groups: $GROUPS"
+          fi
+
+      - name: Publish to Firebase App Distribution (internal)
+        id: firebase-publish
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups:  ${{ steps.targets.outputs.groups }}
+          testers: ${{ steps.targets.outputs.testers }}
+          file: apk-artifacts/debug/app-debug.apk
+          releaseNotes: |
+            Internal canary — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}
+            Commit: ${{ github.sha }}
+            BAT will validate this build before promotion to the public channel.
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Calculate publish duration
+        if: always()
+        run: |
+          if [ "${PUBLISH_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - PUBLISH_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "PUBLISH_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — internal publish result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Firebase Internal Distribution"
+          stage-result:    ${{ steps.firebase-publish.outcome || 'skipped' }}
+          duration:        ${{ env.PUBLISH_DURATION }}
+          # Deep-link to the Firebase Console App Distribution page for
+          # this project. The newest release (i.e. THIS one) is at the
+          # top of the list — clicking the link lands testers there
+          # immediately. We use the project ID (a non-secret Variable)
+          # rather than the App ID (a secret), because secret values
+          # would be masked to *** in the rendered URL.
+          report-url: >-
+            ${{ env.FIREBASE_PROJECT_ID != ''
+                && format('https://console.firebase.google.com/project/{0}/appdistribution', env.FIREBASE_PROJECT_ID)
+                || '' }}
+          link-label:      ":mobile_phone: View on Firebase"
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. PUBLISH PUBLIC — Firebase App Distribution (external testers)
+#
+#    Promotion gate: only runs after BAT validated the internal release.
+#    Soft-gate policy preserved — a 'skipped' BAT (device lab unavailable)
+#    still allows promotion based on the Unit gate alone, but a HARD BAT
+#    failure blocks public promotion (and the quality-gate job alerts).
+# ─────────────────────────────────────────────────────────────────────────────
+  publish-public:
+    name: "Publish Public (Firebase)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, unit-tests, build, publish-internal, bat-e2e]
+    # STRICT promotion gate: only when BAT actually passed.
+    # 'skipped' (device lab unavailable) does NOT promote — internal
+    # remains the latest version available to users until we can validate
+    # on a real / cloud device. Flip back to `!= 'false'` if you want the
+    # old soft-gate behaviour (publish-public on skipped too).
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      needs.publish-internal.result == 'success' &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.bat-e2e.outputs.gate_passed == 'true'
+
+    steps:
+      - name: Record job start time
+        run: echo "PUBLISH_PUB_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-debug-apk
+          path: apk-artifacts
+
+      - name: Resolve public Firebase distribution targets
+        id: targets-pub
+        # Same one-or-the-other logic as publish-internal. Order:
+        #   1. Email list from vars.FIREBASE_PUBLIC_TESTERS
+        #   2. Email list from secrets.FIREBASE_PUBLIC_TESTERS
+        #   3. Group list from vars.FIREBASE_PUBLIC_GROUPS
+        #   4. Group list from secrets.FIREBASE_TESTERS  (legacy name)
+        #   5. Default group name 'external-testers'
+        env:
+          VAR_TESTERS:        ${{ vars.FIREBASE_PUBLIC_TESTERS }}
+          SECRET_TESTERS:     ${{ secrets.FIREBASE_PUBLIC_TESTERS }}
+          VAR_GROUPS:         ${{ vars.FIREBASE_PUBLIC_GROUPS }}
+          LEGACY_GROUP_LIST:  ${{ secrets.FIREBASE_TESTERS }}
+        run: |
+          set -euo pipefail
+          TESTERS="${VAR_TESTERS:-${SECRET_TESTERS:-}}"
+          if [ -n "$TESTERS" ]; then
+            echo "testers=$TESTERS" >> "$GITHUB_OUTPUT"
+            echo "groups=" >> "$GITHUB_OUTPUT"
+            echo "Using testers email list (count: $(echo "$TESTERS" | tr ',' '\n' | wc -l | tr -d ' '))"
+          else
+            GROUPS="${VAR_GROUPS:-${LEGACY_GROUP_LIST:-external-testers}}"
+            echo "groups=$GROUPS" >> "$GITHUB_OUTPUT"
+            echo "testers=" >> "$GITHUB_OUTPUT"
+            echo "Using groups: $GROUPS"
+          fi
+
+      - name: Publish to Firebase App Distribution (testers)
+        id: firebase-publish-pub
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          groups:  ${{ steps.targets-pub.outputs.groups }}
+          testers: ${{ steps.targets-pub.outputs.testers }}
+          file: apk-artifacts/debug/app-debug.apk
+          releaseNotes: |
+            Public release — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}
+            Environment: ${{ env.ENV_LABEL }}
+            Promoted from internal channel after BAT validation passed.
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Calculate publish duration
+        if: always()
+        run: |
+          if [ "${PUBLISH_PUB_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - PUBLISH_PUB_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "PUBLISH_PUB_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — public publish result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "Firebase Public Distribution"
+          stage-result:    ${{ steps.firebase-publish-pub.outcome || 'skipped' }}
+          duration:        ${{ env.PUBLISH_PUB_DURATION }}
+          report-url: >-
+            ${{ env.FIREBASE_PROJECT_ID != ''
+                && format('https://console.firebase.google.com/project/{0}/appdistribution', env.FIREBASE_PROJECT_ID)
+                || '' }}
+          link-label:      ":mobile_phone: View on Firebase"
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. REPORT — final pipeline summary + Slack overall result
+# ─────────────────────────────────────────────────────────────────────────────
+  report:
+    name: "Report & Slack Summary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - notify-start
+      - unit-tests
+      - lint
+      - build
+      - publish-internal
+      - bat-e2e
+      - publish-public
+      - smoke-e2e
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate total pipeline duration
+        run: |
+          START_EPOCH="${{ needs.notify-start.outputs.start_epoch }}"
+          NOW=$(date +%s)
+          ELAPSED=$(( NOW - START_EPOCH ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m ${SECS}s" || DUR="${SECS}s"
+          echo "TOTAL_DURATION=$DUR" >> "$GITHUB_ENV"
+
+      - name: GitHub Step Summary
+        run: |
+          echo "## Android Player Pipeline — Build #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build APK | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Internal | ${{ needs.publish-internal.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (device unavailable)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Gate | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (soft-gated)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Public | ${{ needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Allure Reports (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
+          BASE="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android"
+          echo "- [Unit]($BASE/unit) | [BAT]($BASE/bat) | [Smoke]($BASE/smoke) | [Regression]($BASE/regression)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build final Slack summary payload
+        if: always()
+        env:
+          MODULE_NAME: ANDROID
+          # Chain order matches the actual pipeline execution:
+          # Unit ∥ Lint → Unit Gate → Build → Internal Firebase → BAT →
+          # BAT Gate → Public Firebase → Smoke
+          STAGE1_NAME: Unit Tests (JUnit4)
+          # Use gate output (actual test outcome) so cosmetic step failures
+          # like Allure-publish flakes don't poison the chain rendering.
+          STAGE1_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE2_NAME: Lint
+          STAGE2_RESULT: ${{ needs.lint.result }}
+          STAGE3_NAME: "Unit Gate (≥80%)"
+          STAGE3_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE4_NAME: Build APK
+          STAGE4_RESULT: ${{ needs.build.result }}
+          STAGE5_NAME: Firebase Internal
+          STAGE5_RESULT: ${{ needs.publish-internal.result }}
+          STAGE6_NAME: BAT Tests
+          # bat-e2e has continue-on-error: true, so needs.bat-e2e.result is
+          # always 'success' even on hard failure. Read the gate output
+          # instead — it is the source of truth (true | false | skipped).
+          # When bat-e2e.result == 'skipped' the whole job was bypassed via
+          # skip_bat / vars.SKIP_BAT (device lab availability).
+          STAGE6_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
+          STAGE7_NAME: BAT Gate
+          STAGE7_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
+          STAGE8_NAME: Firebase Public
+          STAGE8_RESULT: ${{ needs.publish-public.result }}
+          STAGE9_NAME: Smoke Tests
+          STAGE9_RESULT: ${{ needs.smoke-e2e.result }}
+          TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REF_NAME: ${{ github.head_ref || github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          WORKFLOW_START_EPOCH: ${{ needs.notify-start.outputs.start_epoch }}
+        run: python3 .github/scripts/module_result_to_slack.py
+
+      - name: Finalize Slack pipeline report
+        if: always()
+        uses: ./.github/actions/slack-pipeline-report
+        with:
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          module-name:      ANDROID
+          # Soft-gate verdict: BAT 'skipped' (device unavailable) is NOT a
+          # build failure — Firebase deploy is allowed to proceed on the
+          # Unit gate alone. Only a HARD BAT failure ('false') flips the
+          # overall pipeline verdict to 'failure'.
+          build-verdict: >-
+            ${{ (needs.unit-tests.result == 'success' &&
+                 needs.unit-tests.outputs.gate_passed == 'true' &&
+                 needs.build.result == 'success' &&
+                 needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
+          env-label:        ${{ env.ENV_LABEL }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Fail pipeline if critical stage failed
+        # bat-e2e uses continue-on-error: true so its job result is always
+        # 'success' — gate_passed is the real outcome (true | false | skipped).
+        # 'skipped' (device unavailable) is NOT a critical failure.
+        if: |
+          needs.unit-tests.result == 'failure' ||
+          needs.unit-tests.outputs.gate_passed == 'false' ||
+          needs.lint.result == 'failure' ||
+          needs.build.result == 'failure' ||
+          needs.bat-e2e.outputs.gate_passed == 'false'
+        run: exit 1

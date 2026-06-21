@@ -1,0 +1,39 @@
+name: Evaluate Jest quality gate
+description: Fail the gate when Jest tests did not succeed or pass rate is below threshold.
+
+inputs:
+  test-outcome:
+    description: Outcome of the npm test step (success|failure|...)
+    required: true
+  threshold:
+    description: Minimum pass rate percentage
+    required: false
+    default: '100'
+  stage-name:
+    description: Human-readable stage label for logs
+    required: true
+
+outputs:
+  passed:
+    description: true when the gate passed
+    value: ${{ steps.gate.outputs.passed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Evaluate ${{ inputs.stage-name }} gate
+      id: gate
+      shell: bash
+      env:
+        TEST_OUTCOME: ${{ inputs.test-outcome }}
+        THRESHOLD: ${{ inputs.threshold }}
+        STAGE_NAME: ${{ inputs.stage-name }}
+      run: |
+        set -euo pipefail
+        if [ "$TEST_OUTCOME" != "success" ]; then
+          echo "❌ $STAGE_NAME gate FAILED — tests did not succeed (outcome=$TEST_OUTCOME)"
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+        echo "✅ $STAGE_NAME gate PASSED"
+        echo "passed=true" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "710273242702",
+    "project_id": "devopsdays-119f5",
+    "storage_bucket": "devopsdays-119f5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:710273242702:android:23bc7b2f44d278c4ff151f",
+        "android_client_info": {
+          "package_name": "com.devopsdays.qoe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXZ2anU3TBZuut0wmzDyNlQaciEVYMyEE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

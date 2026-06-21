@@ -1,0 +1,97 @@
+# shared-notify-build-started.yml
+#
+# Reusable workflow — post a "build started" message to Slack and
+# capture the thread_ts + start_epoch for downstream jobs to use.
+#
+# Called by:  stream-qoe-app-api.yml     (module-name: API)
+#             stream-qoe-app-web.yml     (module-name: WEB)
+#             stream-qoe-app-android.yml (module-name: ANDROID)
+#             stream-qoe-app-ios.yml     (module-name: iOS)
+
+name: Shared — Notify Build Started
+
+on:
+  workflow_call:
+    inputs:
+      module-name:
+        description: 'Module label shown in the Slack header as [MODULE] — e.g. "API", "WEB", "ANDROID", "iOS"'
+        type: string
+        required: true
+      pipeline-steps:
+        description: 'Pipeline stage summary for the footer (e.g. "Unit tests → BAT → Smoke")'
+        type: string
+        required: true
+      environment-label:
+        description: 'Environment label shown in the metadata line (STAGE / PROD)'
+        type: string
+        default: 'STAGE'
+    outputs:
+      thread_ts:
+        description: 'Slack message timestamp — pass to every downstream job for threading'
+        value: ${{ jobs.notify.outputs.thread_ts }}
+      start_epoch:
+        description: 'Unix epoch at pipeline start — used to calculate total duration'
+        value: ${{ jobs.notify.outputs.start_epoch }}
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: false
+      SLACK_CHANNEL_ID:
+        required: false
+
+jobs:
+  notify:
+    name: Notify — build started
+    runs-on: ubuntu-latest
+    outputs:
+      thread_ts:   ${{ steps.post.outputs.thread_ts }}
+      start_epoch: ${{ steps.epoch.outputs.start_epoch }}
+    env:
+      SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+    steps:
+      - name: Post "build started" to Slack
+        id: post
+        if: env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
+        run: |
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          if [ -n "$PR_NUM" ]; then
+            PR_URL="https://github.com/${{ github.repository }}/pull/$PR_NUM"
+            TRIGGERED_BY="${{ github.actor }} (<$PR_URL|PR #$PR_NUM>)"
+          else
+            TRIGGERED_BY="${{ github.actor }} (${{ github.event_name }})"
+          fi
+
+          PAYLOAD=$(python3 - <<EOF
+          import json
+          blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": "[${{ inputs.module-name }}] Stream-QoE-App  |  Build #${{ github.run_number }}", "emoji": True}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": "*Branch:* \`$BRANCH\`  |  *Environment:* ${{ inputs.environment-label }}  |  *Commit:* <$COMMIT_URL|${SHORT_SHA}>  |  *Triggered by:* $TRIGGERED_BY"}},
+            {"type": "divider"},
+            {"type": "context", "elements": [{"type": "mrkdwn", "text": "⏳ ${{ inputs.pipeline-steps }}. Results will follow in this thread."}]},
+            {"type": "actions", "elements": [{"type": "button", "text": {"type": "plain_text", "text": "View Run", "emoji": True}, "url": "$RUN_URL", "style": "primary"}]}
+          ]
+          print(json.dumps({"channel": "${{ env.SLACK_CHANNEL_ID }}", "unfurl_links": False, "unfurl_media": False, "blocks": blocks}))
+          EOF
+          )
+
+          RESPONSE=$(curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${{ env.SLACK_BOT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          echo "Slack response: $RESPONSE"
+          TS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ts',''))")
+          echo "thread_ts=$TS" >> "$GITHUB_OUTPUT"
+
+      - name: Set empty thread_ts when Slack not configured
+        if: env.SLACK_BOT_TOKEN == '' || env.SLACK_CHANNEL_ID == ''
+        run: echo "thread_ts=" >> "$GITHUB_OUTPUT"
+
+      - name: Record pipeline start epoch
+        id: epoch
+        run: echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"

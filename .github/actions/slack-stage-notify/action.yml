@@ -1,0 +1,72 @@
+name: 'Slack Stage Notification'
+description: >
+  Build a stage-result Slack payload (via stage_result_to_slack.py)
+  and post it into the pipeline thread.
+
+inputs:
+  module-name:
+    description: '"API" or "WEB" — used to label the message'
+    required: true
+  stage-name:
+    description: 'Human-readable stage label (e.g. "Unit Tests")'
+    required: true
+  stage-result:
+    description: 'Outcome string: success | failure | skipped | cancelled'
+    required: true
+  duration:
+    description: 'Human-readable elapsed time (e.g. "1m 23s")'
+    default: ''
+  report-url:
+    description: 'Link to the Allure report or deployment URL for this stage'
+    default: ''
+  link-label:
+    description: 'Text label for the report/URL link (default: ":bar_chart: View Report")'
+    default: ':bar_chart: View Report'
+  thread-ts:
+    description: 'Slack thread timestamp — replies are posted into this thread'
+    required: true
+  junit-dir:
+    description: 'Directory containing JUnit XML files (optional — for pass-rate stats)'
+    default: ''
+  playwright-json:
+    description: 'Path to a Playwright JSON results file (optional)'
+    default: ''
+  slack-bot-token:
+    description: 'Slack bot OAuth token'
+    required: true
+  slack-channel-id:
+    description: 'Slack channel ID'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build Slack payload
+      if: always()
+      shell: bash
+      env:
+        MODULE_NAME:      ${{ inputs.module-name }}
+        STAGE_NAME:       ${{ inputs.stage-name }}
+        STAGE_RESULT:     ${{ inputs.stage-result }}
+        DURATION:         ${{ inputs.duration }}
+        REPORT_URL:       ${{ inputs.report-url }}
+        LINK_LABEL:       ${{ inputs.link-label }}
+        THREAD_TS:        ${{ inputs.thread-ts }}
+        JUNIT_DIR:        ${{ inputs.junit-dir }}
+        PLAYWRIGHT_JSON:  ${{ inputs.playwright-json }}
+        SLACK_BOT_TOKEN:  ${{ inputs.slack-bot-token }}
+        SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+        GITHUB_REPOSITORY:  ${{ github.repository }}
+        GITHUB_RUN_ID:      ${{ github.run_id }}
+        GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+        GITHUB_SHA:         ${{ github.sha }}
+      run: python3 .github/scripts/stage_result_to_slack.py
+
+    - name: Send to Slack
+      if: always() && inputs.slack-bot-token != ''
+      uses: slackapi/slack-github-action@v2.1.1
+      continue-on-error: true
+      with:
+        method: chat.postMessage
+        token: ${{ inputs.slack-bot-token }}
+        payload-file-path: ./stage-slack-payload.json

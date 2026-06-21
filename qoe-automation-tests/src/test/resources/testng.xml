@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="QoE Test Suite" parallel="tests" thread-count="3">
+    
+    <test name="API Tests">
+        <classes>
+            <class name="com.devopsdays.qoe.tests.api.QoEMetricsApiTest"/>
+        </classes>
+    </test>
+    
+    <test name="Web Player Tests">
+        <classes>
+            <class name="com.devopsdays.qoe.tests.web.WebPlayerQoETest"/>
+        </classes>
+    </test>
+    
+    <test name="Mobile Tests">
+        <parameter name="mobile.platform" value="android"/>
+        <classes>
+            <class name="com.devopsdays.qoe.tests.mobile.MobileQoETest"/>
+        </classes>
+    </test>
+    
+    <test name="Validation Tests">
+        <classes>
+            <class name="com.devopsdays.qoe.tests.validation.QoEValidationTest"/>
+        </classes>
+    </test>
+    
+</suite>

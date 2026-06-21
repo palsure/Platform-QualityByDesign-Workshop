@@ -1,0 +1,924 @@
+# Stream-QoE-App-Web
+#
+# Pipeline flow:
+#   0. notify-start    — Post "build started" to Slack; capture thread_ts + start_epoch.
+#   1. build           — tsc + vite build; produces deployable dist/ artifact.
+#   2. unit-tests      — Vitest runs AFTER build succeeds. Gate (≥80%) inlined.
+#   3. deploy-preview  — Firebase preview channel deployed ONLY when Unit gate passes.
+#                        BAT tests run against this real URL (no localhost serve).
+#   4. bat-tests       — @BAT Playwright tests (4 workers) against preview URL.
+#                        Gate inlined.
+#   5. promote-live    — Promotes preview → live RIGHT AFTER BAT gate passes.
+#                        Trusted deployment: BAT is sufficient for promotion.
+#   6. report  ──────  — Fires after promote-live. Pipeline marks complete here.
+#   7. smoke-tests     — @Smoke tests against the LIVE URL. Async / non-blocking.
+#                        Validates the promoted live deployment end-to-end.
+#   8. rollback        — Runs when BAT GATE FAILS; blocks promotion + alerts team.
+#
+# Required secrets (Slack steps are skipped when not set):
+#   SLACK_BOT_TOKEN       — Slack bot OAuth token
+#   SLACK_CHANNEL_ID      — Target Slack channel ID
+# Optional secrets:
+#   FIREBASE_TOKEN        — Firebase CI token (`firebase login:ci`)
+#   FIREBASE_PROJECT_ID   — Firebase project ID
+
+name: Stream-QoE-App-Web
+
+on:
+  pull_request:
+    paths:
+      - 'web-player/**'
+      - '.github/workflows/stream-qoe-app-web.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'web-player/**'
+      - '.github/workflows/stream-qoe-app-web.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests and force-publish to Firebase (hotfix mode)'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'Target environment (STAGE / PROD)'
+        required: false
+        default: 'STAGE'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  QUALITY_GATE_THRESHOLD: '80'
+  ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0. NOTIFY START  (reusable workflow)
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  notify-start:
+    uses: ./.github/workflows/shared-notify-build-started.yml
+    with:
+      module-name:       WEB
+      pipeline-steps:    "Build → Unit → Unit Gate → Deploy Preview → BAT → Promote → Smoke (async)"
+      environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. BUILD — tsc + vite build; produces deployable dist/ artifact
+# ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: notify-start
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-player/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web-player
+
+      - name: Lint
+        run: npm run lint
+        working-directory: web-player
+
+      - name: Build
+        run: npm run build
+        working-directory: web-player
+
+      - name: Upload build artifact (dist/)
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web-player/dist/
+          retention-days: 7
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. UNIT TESTS — Vitest; fast pre-deploy gate; no browser required
+# ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: "Unit Tests (Vitest)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Build → Unit Tests → (gate) → Deploy Preview
+    # Unit tests run AFTER the build artifact is ready so we know the code
+    # at least compiles before we exercise the test suite.
+    needs: [notify-start, build]
+    if: inputs.skip_tests != true && needs.build.result == 'success'
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      thread_ts:   ${{ needs.notify-start.outputs.thread_ts }}
+      gate_passed: ${{ steps.unit-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "UNIT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-player/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web-player
+
+      - name: Run unit tests (Vitest)
+        id: unit
+        run: npm test
+        working-directory: web-player
+        env:
+          CI: 'true'
+          ALLURE_RESULTS_DIR: allure-results/unit
+
+      - name: Calculate unit duration
+        if: always()
+        run: |
+          if [ "${UNIT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - UNIT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "UNIT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload unit JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-unit-junit
+          path: web-player/test-results/vitest-junit.xml
+          retention-days: 14
+
+      - name: Upload unit Allure raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-web-unit
+          path: web-player/allure-results/unit
+          retention-days: 14
+
+      - name: Generate & deploy unit Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Web Unit Tests"
+          results-src:        web-player/allure-results/unit
+          pages-destination:  allure/${{ github.run_number }}/web/unit
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Slack — unit test result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      "Unit Tests (Vitest)"
+          stage-result:    ${{ steps.unit.outcome }}
+          duration:        ${{ env.UNIT_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web/unit
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       web-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate unit quality gate (inline)
+        id: unit-gate
+        if: always()
+        env:
+          QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
+        run: |
+          UNIT="${{ steps.unit.outcome }}"
+          SKIP="${{ inputs.skip_tests }}"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "⚡ Hotfix mode — unit gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          if [ "$UNIT" != "success" ]; then
+            echo "❌ Unit tests did not succeed (result=$UNIT) — gate FAILED"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET, os
+          files = glob.glob("web-player/test-results/**/*.xml", recursive=True)
+          total = passed = failed = skipped = 0
+          for f in files:
+              root = ET.parse(f).getroot()
+              suites = root.findall('testsuite') if root.tag == 'testsuites' else [root]
+              for s in suites:
+                  t  = int(s.attrib.get("tests",    0))
+                  fa = int(s.attrib.get("failures", 0)) + int(s.attrib.get("errors", 0))
+                  sk = int(s.attrib.get("skipped",  0))
+                  total += t; failed += fa; skipped += sk; passed += max(0, t - fa - sk)
+
+          threshold = float(os.environ.get("QUALITY_GATE_THRESHOLD", "80"))
+          rate = (100.0 * passed / total) if total > 0 else 0.0
+          gate_ok = rate >= threshold and failed == 0
+
+          print(f"Unit gate: {passed}/{total} passed ({rate:.1f}%) — threshold {threshold}%")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+              gh.write(f"gate_passed={'true' if gate_ok else 'false'}\n")
+          if not gate_ok:
+              print(f"❌ FAILED — {rate:.1f}% < {threshold}% or {failed} test(s) failed")
+          else:
+              print(f"✅ PASSED — running BAT tests in parallel with Firebase deploy")
+          EOF
+
+      - name: Post unit gate decision to Slack
+        if: always()
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.unit-gate.outputs.gate_passed }}
+          proceed-message:  "Unit gate *PASSED* — deploying to Firebase Preview…"
+          blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. Deploy + BAT *BLOCKED*."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. BAT TESTS — @BAT Playwright tests; 4 workers, 45 s timeout per test
+#    Runs against the Firebase Preview URL after deploy-preview completes.
+# ─────────────────────────────────────────────────────────────────────────────
+  bat-tests:
+    name: "BAT — Build Acceptance Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [notify-start, deploy-preview]
+    if: inputs.skip_tests != true && needs.deploy-preview.result == 'success'
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      gate_passed: ${{ steps.bat-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "BAT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-player/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web-player
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: web-player
+
+      - name: Confirm BAT target URL (Firebase Preview)
+        run: |
+          URL="${{ needs.deploy-preview.outputs.preview_url }}"
+          CHANNEL="${{ needs.deploy-preview.outputs.channel }}"
+          echo "🔍 deploy-preview.channel:     '$CHANNEL'"
+          echo "🔍 deploy-preview.preview_url: '${URL:-<empty>}'"
+          echo "🔍 URL length:                 ${#URL}"
+          if [[ "$URL" != https://* ]]; then
+            echo "❌ ERROR: Firebase Preview URL is required for BAT tests."
+            echo "   Got: '${URL:-<empty>}'"
+            echo "   Set repo variable FIREBASE_PREVIEW_URL (see deploy-preview job logs)."
+            exit 1
+          fi
+          echo "✅ BAT will run against Firebase Preview: $URL"
+
+      - name: Run BAT tests (@BAT, 4 workers)
+        id: bat
+        run: npm run e2e:bat
+        working-directory: web-player
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: ${{ needs.deploy-preview.outputs.preview_url }}
+
+      - name: Calculate BAT duration
+        if: always()
+        run: |
+          if [ "${BAT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - BAT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "BAT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload BAT Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-bat-playwright-report
+          path: web-player/playwright-report/bat/
+          retention-days: 14
+
+      - name: Upload BAT Playwright JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-bat-playwright-json
+          path: web-player/playwright-results-bat.json
+          retention-days: 14
+
+      - name: Upload BAT Allure raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-web-bat
+          path: web-player/allure-results/bat
+          retention-days: 14
+
+      - name: Generate & deploy BAT Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Web BAT"
+          results-src:        web-player/allure-results/bat
+          pages-destination:  allure/${{ github.run_number }}/web/bat
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Slack — BAT result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      "BAT (Build Acceptance Tests)"
+          stage-result:    ${{ steps.bat.outcome }}
+          duration:        ${{ env.BAT_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web/bat
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          playwright-json: web-player/playwright-results-bat.json
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate BAT quality gate (inline)
+        id: bat-gate
+        if: always()
+        run: |
+          BAT="${{ steps.bat.outcome }}"
+          SKIP="${{ inputs.skip_tests }}"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "⚡ Hotfix mode — BAT gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "success" ]; then
+            echo "✅ BAT gate PASSED — Smoke tests can start"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ BAT gate FAILED (bat=$BAT) — blocking Smoke tests"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post BAT gate decision to Slack
+        if: always()
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.bat-gate.outputs.gate_passed }}
+          proceed-message:  "BAT gate *PASSED* — running Smoke tests…"
+          blocked-message:  "BAT gate *FAILED* — Smoke tests *BLOCKED*."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. DEPLOY PREVIEW — Firebase Hosting preview channel
+#    Gated on Unit gate (≥80%) — only deploy code that passed its own tests.
+# ─────────────────────────────────────────────────────────────────────────────
+  deploy-preview:
+    name: "Deploy Firebase Preview"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, build, unit-tests]
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      needs.unit-tests.outputs.gate_passed == 'true'
+    outputs:
+      preview_url: ${{ steps.resolve-url.outputs.preview_url }}
+      channel:     ${{ steps.resolve-url.outputs.channel }}
+      thread_ts:   ${{ needs.notify-start.outputs.thread_ts }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web-player/dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      # Static preview URL strategy:
+      #   - Always deploys to the SAME channel name (default "staging")
+      #   - Firebase reuses the SAME URL for the same channel name across deploys
+      #   - URL is read from FIREBASE_PREVIEW_URL — accepts either a repo VARIABLE
+      #     (preferred, since URLs aren't secret) or a repo SECRET (also works)
+      #   - No URL extraction from CLI output — eliminates all flakiness
+      - name: Deploy to fixed preview channel
+        id: resolve-url
+        run: |
+          echo "DEPLOY_START=$(date +%s)" >> "$GITHUB_ENV"
+          CHANNEL="${FIREBASE_CHANNEL_ID:-staging}"
+          PREVIEW_URL="$FIREBASE_PREVIEW_URL"
+
+          echo "::group::🔍 Resolved configuration"
+          echo "Channel ID:           $CHANNEL"
+          echo "Preview URL (length): ${#PREVIEW_URL}"
+          echo "Preview URL:          ${PREVIEW_URL:-<not set>}"
+          echo "::endgroup::"
+
+          # Write outputs IMMEDIATELY so they're available downstream even if a later command fails
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "PREVIEW_URL=$PREVIEW_URL" >> "$GITHUB_ENV"
+
+          if [ -z "$FIREBASE_TOKEN" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "❌ FIREBASE_TOKEN or FIREBASE_PROJECT_ID secret missing."
+            exit 1
+          fi
+
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "❌ FIREBASE_PREVIEW_URL is not set (checked both vars and secrets)."
+            echo "   First-time setup:"
+            echo "     1. firebase hosting:channel:deploy $CHANNEL --expires 30d --project $FIREBASE_PROJECT_ID"
+            echo "     2. Copy the URL it prints"
+            echo "     3. Add as repo VARIABLE (recommended): Settings → Secrets and variables → Actions → Variables → New"
+            echo "        Name:  FIREBASE_PREVIEW_URL"
+            echo "        Value: <the URL>"
+            echo "        (Also accepts repo SECRET with the same name)"
+            exit 1
+          fi
+
+          echo "🚀 Deploying to fixed channel: $CHANNEL"
+          firebase hosting:channel:deploy "$CHANNEL" \
+            --expires 30d \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN"
+
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "✅ PREVIEW URL: $PREVIEW_URL"
+          echo "════════════════════════════════════════════════════════════"
+        working-directory: web-player
+        env:
+          FIREBASE_TOKEN:       ${{ secrets.FIREBASE_TOKEN }}
+          # Project ID is NOT secret (it appears in every public Firebase URL).
+          # Accepting from vars avoids GitHub redacting the URL output downstream.
+          FIREBASE_PROJECT_ID:  ${{ vars.FIREBASE_PROJECT_ID || secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CHANNEL_ID:  ${{ vars.FIREBASE_CHANNEL_ID }}
+          FIREBASE_PREVIEW_URL: ${{ vars.FIREBASE_PREVIEW_URL || secrets.FIREBASE_PREVIEW_URL }}
+
+      - name: Calculate deploy duration
+        if: always()
+        run: |
+          if [ "${DEPLOY_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - DEPLOY_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "DEPLOY_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — preview deploy result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      Firebase Preview Deploy
+          stage-result:    ${{ steps.resolve-url.outcome }}
+          duration:        ${{ env.DEPLOY_DURATION }}
+          report-url:      ${{ steps.resolve-url.outputs.preview_url }}
+          link-label:      ":globe_with_meridians: Preview URL"
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. SMOKE TESTS — @Smoke Playwright tests; 4 workers; async (non-blocking)
+#    Runs after promote-live against the LIVE URL.
+#    Runs after deploy-preview; results delivered via Slack only.
+# ─────────────────────────────────────────────────────────────────────────────
+  smoke-tests:
+    name: "Smoke Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [notify-start, promote-live, deploy-preview]
+    if: needs.promote-live.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Record job start time
+        run: echo "SMOKE_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web-player/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web-player
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: web-player
+
+      - name: Confirm Smoke target URL (must be Firebase Live)
+        run: |
+          URL="${{ needs.promote-live.outputs.live_url }}"
+          echo "🔍 Smoke target URL: ${URL:-<not set>}"
+          if [[ "$URL" != https://* ]]; then
+            echo "❌ ERROR: Firebase Live URL is required for Smoke tests."
+            echo "   Got: '${URL:-<empty>}'"
+            echo "   Smoke tests validate the live deployment — they must NOT run on preview/localhost."
+            exit 1
+          fi
+          echo "✅ Smoke will run against Firebase Live: $URL"
+
+      - name: Run Smoke tests (@Smoke, 4 workers)
+        id: smoke
+        continue-on-error: true
+        run: npm run e2e:smoke
+        working-directory: web-player
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: ${{ needs.promote-live.outputs.live_url }}
+
+      - name: Calculate Smoke duration
+        if: always()
+        run: |
+          if [ "${SMOKE_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - SMOKE_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "SMOKE_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload Smoke Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-playwright-report
+          path: web-player/playwright-report/smoke/
+          retention-days: 14
+
+      - name: Upload Smoke Playwright JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-smoke-playwright-json
+          path: web-player/playwright-results-smoke.json
+          retention-days: 14
+
+      - name: Upload Smoke Allure raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-web-smoke
+          path: web-player/allure-results/smoke
+          retention-days: 14
+
+      - name: Generate & deploy Smoke Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Web Smoke"
+          results-src:        web-player/allure-results/smoke
+          pages-destination:  allure/${{ github.run_number }}/web/smoke
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Slack — Smoke result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      Smoke Tests
+          stage-result:    ${{ steps.smoke.outcome }}
+          duration:        ${{ env.SMOKE_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web/smoke
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          playwright-json: web-player/playwright-results-smoke.json
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Fail if Smoke tests failed
+        if: steps.smoke.outcome == 'failure'
+        run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. PROMOTE LIVE — right after BAT gate passes (before Smoke)
+# ─────────────────────────────────────────────────────────────────────────────
+  promote-live:
+    name: "Promote to Live"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, deploy-preview, bat-tests]
+    if: always() && needs.bat-tests.outputs.gate_passed == 'true' && needs.deploy-preview.result == 'success'
+    outputs:
+      live_url: ${{ steps.promote.outputs.live_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Promote preview channel to live
+        id: promote
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "❌ FIREBASE_TOKEN or FIREBASE_PROJECT_ID secret missing."
+            exit 1
+          fi
+          CHANNEL="${{ needs.deploy-preview.outputs.channel }}"
+          LIVE_URL="https://$FIREBASE_PROJECT_ID.web.app"
+          echo "live_url=$LIVE_URL" >> "$GITHUB_OUTPUT"
+
+          # Clone the fixed staging channel content to the live channel.
+          # NOTE: do NOT delete the staging channel — it's reused on the next deploy
+          # so its URL stays static (the whole point of the fixed-channel approach).
+          firebase hosting:clone "$FIREBASE_PROJECT_ID:$CHANNEL" "$FIREBASE_PROJECT_ID:live" \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN"
+
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "🚀 Promoted $CHANNEL → live"
+          echo "🌐 LIVE URL: $LIVE_URL"
+          echo "════════════════════════════════════════════════════════════"
+        working-directory: web-player
+        env:
+          FIREBASE_TOKEN:      ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Notify Slack — promote result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      Firebase Live Promotion
+          stage-result:    ${{ steps.promote.outcome || 'skipped' }}
+          report-url:      ${{ steps.promote.outputs.live_url }}
+          link-label:      ":rocket: Live URL"
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. ROLLBACK — BAT gate failed; block deployment and alert team
+# ─────────────────────────────────────────────────────────────────────────────
+  rollback:
+    name: "Rollback — BAT Gate Failed"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, bat-tests]
+    if: always() && needs.bat-tests.result != 'skipped' && needs.bat-tests.outputs.gate_passed != 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Block deployment
+        run: |
+          echo "❌ BAT gate failed — build #${{ github.run_number }} blocked from deployment"
+          echo "Commit: ${{ github.sha }} will NOT be promoted to live"
+          echo "Branch: ${{ github.head_ref || github.ref_name }}"
+          echo "Fix failing BAT tests before this branch can be promoted."
+
+      - name: Notify Slack — deployment blocked
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     WEB
+          stage-name:      "Deployment Blocked (BAT Gate Failed)"
+          stage-result:    failure
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. REPORT — final pipeline summary + Slack overall result
+# ─────────────────────────────────────────────────────────────────────────────
+  report:
+    name: "Report & Slack Summary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - notify-start
+      - build
+      - unit-tests
+      - bat-tests
+      - deploy-preview
+      - promote-live
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate total pipeline duration
+        run: |
+          START_EPOCH="${{ needs.notify-start.outputs.start_epoch }}"
+          NOW=$(date +%s)
+          ELAPSED=$(( NOW - START_EPOCH ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m ${SECS}s" || DUR="${SECS}s"
+          echo "TOTAL_DURATION=$DUR" >> "$GITHUB_ENV"
+
+      - name: GitHub Step Summary
+        run: |
+          echo "## 🌐 Web Player Pipeline — Build #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Vitest) | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Preview | ${{ needs.deploy-preview.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Tests | ${{ needs.bat-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Gate | ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Live Promotion | ${{ needs.promote-live.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | ${{ needs.promote-live.result == 'success' && '🔄 In Progress (async)' || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Allure Reports (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
+          BASE="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web"
+          echo "- [Unit]($BASE/unit) | [BAT]($BASE/bat) | [Smoke]($BASE/smoke)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build final Slack summary payload
+        if: always()
+        env:
+          MODULE_NAME: WEB
+          STAGE1_NAME: Build
+          STAGE1_RESULT: ${{ needs.build.result }}
+          STAGE2_NAME: Unit Tests (Vitest)
+          # Use gate output (actual test outcome) so cosmetic step failures
+          # like Allure-publish flakes don't poison the chain rendering.
+          STAGE2_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE3_NAME: "Unit Gate (≥80%)"
+          STAGE3_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE4_NAME: Firebase Preview
+          STAGE4_RESULT: ${{ needs.deploy-preview.result }}
+          STAGE5_NAME: BAT Tests
+          STAGE5_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE6_NAME: BAT Gate
+          STAGE6_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE7_NAME: Firebase Live Promotion
+          STAGE7_RESULT: ${{ needs.promote-live.result }}
+          STAGE8_NAME: Smoke Tests
+          STAGE8_RESULT: ${{ needs.promote-live.result == 'success' && 'in-progress' || 'skipped' }}
+          TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REF_NAME: ${{ github.head_ref || github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          WORKFLOW_START_EPOCH: ${{ needs.notify-start.outputs.start_epoch }}
+        run: python3 .github/scripts/module_result_to_slack.py
+
+      - name: Finalize Slack pipeline report
+        if: always()
+        uses: ./.github/actions/slack-pipeline-report
+        with:
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          module-name:      WEB
+          build-verdict: >-
+            ${{ (needs.build.result == 'success' &&
+                 needs.unit-tests.result != 'failure' &&
+                 needs.unit-tests.outputs.gate_passed == 'true' &&
+                 needs.bat-tests.outputs.gate_passed == 'true' &&
+                 needs.deploy-preview.result == 'success') && 'success' || 'failure' }}
+          env-label:        ${{ env.ENV_LABEL }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      # ── PR comment with per-stage results + Allure links ──────────────────
+      - name: Download unit JUnit results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-unit-junit
+          path: artifacts/unit
+
+      - name: Download BAT Playwright JSON results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-bat-playwright-json
+          path: artifacts/bat
+
+      - name: Download Smoke Playwright JSON results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-smoke-playwright-json
+          path: artifacts/smoke
+
+      - name: Generate PR comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_SHA:         ${{ github.sha }}
+          PR_NUMBER:          ${{ github.event.pull_request.number }}
+          BRANCH_NAME:        ${{ github.head_ref }}
+          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
+          STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
+          STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
+          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
+        run: python3 .github/scripts/pr_summary_web.py
+
+      - name: Post or update PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs     = require('fs');
+            const body   = fs.readFileSync('pr-comment-web.md', 'utf8');
+            const MARKER = '<!-- qoe-web-results -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+              console.log('Updated PR comment', existing.id);
+            } else {
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+              console.log('Created PR comment');
+            }
+
+      - name: Fail pipeline if critical stage failed
+        if: |
+          needs.build.result == 'failure' ||
+          needs.unit-tests.result == 'failure' ||
+          needs.unit-tests.outputs.gate_passed == 'false' ||
+          needs.bat-tests.result == 'failure' ||
+          needs.deploy-preview.result == 'failure'
+        run: exit 1

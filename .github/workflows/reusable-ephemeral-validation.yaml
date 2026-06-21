@@ -1,0 +1,107 @@
+name: Reusable Ephemeral Validation
+
+# Spins up the full Docker Compose stack (postgres + backend + web-player + nginx),
+# runs post-deploy smoke + k6 perf smoke, then tears down.
+
+on:
+  workflow_call:
+    inputs:
+      pr_id:
+        required: true
+        type: string
+    outputs:
+      smoke_passed:
+        value: ${{ jobs.validate.outputs.smoke_passed }}
+      perf_passed:
+        value: ${{ jobs.validate.outputs.perf_passed }}
+      all_passed:
+        value: ${{ jobs.validate.outputs.passed }}
+
+jobs:
+  validate:
+    name: Ephemeral Stack + Smoke + Perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      smoke_passed: ${{ steps.smoke-gate.outputs.passed }}
+      perf_passed: ${{ steps.perf-gate.outputs.passed }}
+      passed: ${{ steps.promotion-gate.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Compose stack
+        run: docker compose build
+
+      - name: Start ephemeral environment
+        run: |
+          docker compose up -d
+          echo "Ephemeral env started (PR pattern: qoe-pr-${{ inputs.pr_id }})"
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "✅ Backend healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs backend
+          exit 1
+
+      - name: Run smoke tests
+        id: smoke
+        env:
+          API_BASE: http://localhost:8080
+          WEB_BASE: http://localhost:3000
+        run: |
+          chmod +x platform/tests/smoke/smoke-test.sh
+          platform/tests/smoke/smoke-test.sh
+
+      - name: Evaluate smoke gate
+        id: smoke-gate
+        if: always()
+        run: |
+          if [ "${{ steps.smoke.outcome }}" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Run k6 performance smoke
+        id: k6
+        if: steps.smoke-gate.outputs.passed == 'true'
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: platform/tests/load/load-test.js
+        env:
+          API_BASE: http://localhost:8080
+
+      - name: Evaluate performance smoke gate
+        id: perf-gate
+        if: always()
+        run: |
+          if [ "${{ steps.k6.outcome }}" != "success" ]; then
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          chmod +x platform/scripts/quality-gate.sh
+          MAX_ERROR_RATE=0.01 MAX_P95_MS=800 ERROR_RATE=0 P95_MS=200 \
+            platform/scripts/quality-gate.sh pr
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Promotion gate decision
+        id: promotion-gate
+        if: always()
+        run: |
+          if [ "${{ steps.smoke-gate.outputs.passed }}" = "true" ] && [ "${{ steps.perf-gate.outputs.passed }}" = "true" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Destroy ephemeral environment
+        if: always()
+        run: docker compose down -v --remove-orphans

@@ -1,0 +1,323 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'io.qameta.allure' version '2.11.2'
+}
+
+group = 'com.devopsdays.qoe'
+version = '1.0.0'
+
+java {
+    toolchain {
+        // Java 21 LTS — supported by Spring Boot 3.2+ and available on all CI runners.
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        // Lock all Testcontainers modules to 1.21.4 (docker-java 3.4+ with modern API support)
+        mavenBom "org.testcontainers:testcontainers-bom:1.21.4"
+    }
+}
+
+dependencies {
+    // Spring Boot starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // OpenAPI / Swagger UI (Spring Boot 3.2 — use 2.5.x line for path/trailing-slash fixes)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+    
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Flyway — runs migrations on startup so the schema exists before Hibernate validates it
+    // Spring Boot 3.2 manages Flyway 9.x where PostgreSQL support is bundled in flyway-core
+    implementation 'org.flywaydb:flyway-core'
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    
+    // New Relic
+    implementation 'com.newrelic.agent.java:newrelic-api:8.0.0'
+    
+    // JSON processing
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:postgresql:1.21.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
+
+    // API E2E (HTTP) + Allure
+    testImplementation 'io.rest-assured:rest-assured:5.4.0'
+    testImplementation 'io.rest-assured:json-path:5.4.0'
+    testImplementation 'io.qameta.allure:allure-junit5:2.29.0'
+    testImplementation 'io.qameta.allure:allure-rest-assured:2.29.0'
+}
+
+allure {
+    version = '2.29.0'
+    adapter {
+        autoconfigure.set(true)
+        // Do not weave main sources — breaks plain unit tests (missing $AjcClosure classes).
+        aspectjWeaver.set(false)
+        frameworks {
+            junit5 {
+                adapterVersion.set('2.29.0')
+            }
+        }
+    }
+}
+
+tasks.named('bootJar') {
+    archiveFileName.set('application.jar')
+}
+
+// ── Clean tasks ───────────────────────────────────────────────────────────────
+
+// Wipe all Allure raw results and generated HTML reports without touching compiled classes.
+tasks.register('cleanAllure') {
+    group = 'build'
+    description = 'Delete all Allure raw results and HTML reports, keeping compiled classes.'
+    doLast {
+        delete layout.buildDirectory.dir('allure-results')
+        delete layout.buildDirectory.dir('reports/allure-report')
+        logger.lifecycle('Allure results and reports deleted.')
+    }
+}
+
+// Full reset: compiled classes + Allure results + HTML reports.
+tasks.register('cleanAll') {
+    group = 'build'
+    description = 'Full clean: delete build outputs and all Allure results/reports.'
+    dependsOn clean
+    doLast {
+        logger.lifecycle('Full clean complete — all build outputs and Allure data removed.')
+    }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform {
+        // OR: any test tagged unit, contract, or e2e
+        includeTags 'unit', 'contract', 'e2e'
+    }
+}
+
+tasks.register('unitTest', Test) {
+    group = 'verification'
+    description = 'Unit tests only (fast, no Docker). Run before image build / deployment.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter(tasks.compileTestJava)
+    useJUnitPlatform {
+        includeTags 'unit'
+    }
+
+    // Run all 3 unit-test classes concurrently in separate JVM forks.
+    // Each fork picks up junit-platform.properties and runs its test methods
+    // in parallel threads too (mode.default = concurrent, factor = 2).
+    maxParallelForks = Math.max(1, Runtime.runtime.availableProcessors())
+
+    // Give each fork enough heap for Mockito / byte-buddy class generation.
+    jvmArgs '-Xmx512m', '-Xms128m'
+
+    // Separate Allure results directory so unit and E2E reports stay independent.
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/unit').get().asFile.absolutePath
+}
+
+tasks.register('contractTest', Test) {
+    group = 'verification'
+    description = 'API contract tests — stable response shapes (Quality-by-Design gate).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter('unitTest')
+    useJUnitPlatform {
+        includeTags 'contract'
+    }
+    maxParallelForks = 1
+    jvmArgs '-Xmx768m', '-Xms256m'
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/contract').get().asFile.absolutePath
+    configureDockerHost(it)
+}
+
+// Shared closure: configure Docker Desktop socket path for Testcontainers tasks.
+// Docker Desktop on Mac exposes the real daemon via docker.raw.sock.
+// The ~/.docker/run/docker.sock proxy returns HTTP 400 to non-CLI clients.
+def configureDockerHost = { Test task ->
+    def dockerHost = System.getenv("DOCKER_HOST") ?: ""
+    if (!dockerHost) {
+        def rawSocket = new File("${System.getProperty('user.home')}" +
+                "/Library/Containers/com.docker.docker/Data/docker.raw.sock")
+        if (rawSocket.exists()) {
+            dockerHost = "unix://${rawSocket.absolutePath}"
+        }
+    }
+    if (dockerHost) {
+        task.environment    "DOCKER_HOST",       dockerHost
+        task.systemProperty "DOCKER_HOST",       dockerHost
+        // Tell Ryuk/Testcontainers to mount the standard Linux socket path —
+        // Docker Desktop VM exposes it internally as /var/run/docker.sock.
+        task.environment    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock"
+        task.systemProperty "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock"
+    }
+}
+
+tasks.register('e2eTest', Test) {
+    group = 'verification'
+    description = 'All API E2E tests (REST Assured + Testcontainers). Runs BAT + Smoke + Regression together.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter(tasks.compileTestJava)
+    useJUnitPlatform {
+        includeTags 'e2e'
+    }
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/e2e').get().asFile.absolutePath
+    configureDockerHost(it)
+}
+
+// ── Staged E2E tasks (BAT → Smoke → Regression) ──────────────────────────────
+
+tasks.register('batTest', Test) {
+    group = 'verification'
+    description = 'Build Acceptance Tests (BAT) — critical sanity checks run after every build. Gate deployment.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter('contractTest')
+    useJUnitPlatform {
+        includeTags 'BAT'
+    }
+    // Run each test class in its own JVM fork — each gets an isolated Testcontainers DB.
+    // @Execution(SAME_THREAD) on each class prevents intra-fork thread parallelism.
+    maxParallelForks = 2
+    jvmArgs '-Xmx768m', '-Xms256m'
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/bat').get().asFile.absolutePath
+    configureDockerHost(it)
+}
+
+tasks.register('smokeTest', Test) {
+    group = 'verification'
+    description = 'Smoke tests — broader coverage run after BAT gate passes.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter('batTest')
+    useJUnitPlatform {
+        includeTags 'Smoke'
+    }
+    // Run each test class in its own JVM fork — each gets an isolated Testcontainers DB.
+    // @Execution(SAME_THREAD) on each class prevents intra-fork thread parallelism.
+    maxParallelForks = 2
+    jvmArgs '-Xmx768m', '-Xms256m'
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/smoke').get().asFile.absolutePath
+    configureDockerHost(it)
+}
+
+tasks.register('regressionTest', Test) {
+    group = 'verification'
+    description = 'Full regression tests — run on-demand or nightly after smoke passes.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter('smokeTest')
+    useJUnitPlatform {
+        includeTags 'Regression'
+    }
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/regression').get().asFile.absolutePath
+    configureDockerHost(it)
+}
+
+// ── Allure report tasks ───────────────────────────────────────────────────────
+
+// Keep the plugin-managed task for the combined/default test task.
+tasks.named('allureReport') {
+    dependsOn 'e2eTest'
+    doFirst {
+        delete layout.buildDirectory.dir('reports/allure-report/allureReport')
+    }
+}
+
+// Unit-test-specific HTML report.
+tasks.register('allureReportUnit', Exec) {
+    group = 'reporting'
+    description = 'Generate Allure HTML report for unit tests only.'
+    dependsOn 'unitTest'
+    def resultsDir = layout.buildDirectory.dir('allure-results/unit').get().asFile
+    def reportDir  = layout.buildDirectory.dir('reports/allure-report/unit').get().asFile
+    doFirst { if (reportDir.exists()) reportDir.deleteDir() }
+    commandLine 'allure', 'generate', '--clean',
+            '--output', reportDir.absolutePath,
+            resultsDir.absolutePath
+}
+
+// E2E-test-specific HTML report (full suite).
+tasks.register('allureReportE2e', Exec) {
+    group = 'reporting'
+    description = 'Generate Allure HTML report for all E2E tests.'
+    dependsOn 'e2eTest'
+    def resultsDir = layout.buildDirectory.dir('allure-results/e2e').get().asFile
+    def reportDir  = layout.buildDirectory.dir('reports/allure-report/e2e').get().asFile
+    doFirst { if (reportDir.exists()) reportDir.deleteDir() }
+    commandLine 'allure', 'generate', '--clean',
+            '--output', reportDir.absolutePath,
+            resultsDir.absolutePath
+}
+
+// BAT-specific HTML report.
+tasks.register('allureReportBat', Exec) {
+    group = 'reporting'
+    description = 'Generate Allure HTML report for BAT tests.'
+    dependsOn 'batTest'
+    def resultsDir = layout.buildDirectory.dir('allure-results/bat').get().asFile
+    def reportDir  = layout.buildDirectory.dir('reports/allure-report/bat').get().asFile
+    doFirst { if (reportDir.exists()) reportDir.deleteDir() }
+    commandLine 'allure', 'generate', '--clean',
+            '--output', reportDir.absolutePath,
+            resultsDir.absolutePath
+}
+
+// Smoke-test-specific HTML report.
+tasks.register('allureReportSmoke', Exec) {
+    group = 'reporting'
+    description = 'Generate Allure HTML report for Smoke tests.'
+    dependsOn 'smokeTest'
+    def resultsDir = layout.buildDirectory.dir('allure-results/smoke').get().asFile
+    def reportDir  = layout.buildDirectory.dir('reports/allure-report/smoke').get().asFile
+    doFirst { if (reportDir.exists()) reportDir.deleteDir() }
+    commandLine 'allure', 'generate', '--clean',
+            '--output', reportDir.absolutePath,
+            resultsDir.absolutePath
+}
+
+// Regression-test-specific HTML report.
+tasks.register('allureReportRegression', Exec) {
+    group = 'reporting'
+    description = 'Generate Allure HTML report for Regression tests.'
+    dependsOn 'regressionTest'
+    def resultsDir = layout.buildDirectory.dir('allure-results/regression').get().asFile
+    def reportDir  = layout.buildDirectory.dir('reports/allure-report/regression').get().asFile
+    doFirst { if (reportDir.exists()) reportDir.deleteDir() }
+    commandLine 'allure', 'generate', '--clean',
+            '--output', reportDir.absolutePath,
+            resultsDir.absolutePath
+}

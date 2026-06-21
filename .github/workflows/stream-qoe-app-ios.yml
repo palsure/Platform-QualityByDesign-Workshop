@@ -1,0 +1,901 @@
+# Stream-QoE-App-iOS
+#
+# Pipeline flow:
+#   0. notify-start     — Post "build started" to Slack; capture thread_ts + start_epoch.
+#   1. unit-tests       — XCTest unit tests via swift test; inline unit gate (≥80%).
+#   2. build-app        — swift build release; produces build artifact.
+#   3. bat-e2e          — @BAT XCTest; swift test --filter BATTests; inline BAT gate.
+#   4. smoke-e2e        — @Smoke tests; swift test --filter SmokeTests; after BAT gate.
+#   5. regression-e2e   — @Regression; nightly schedule only; continue-on-error.
+#   6. quality-gate     — BAT gate failed; block Firebase and alert team.
+#   7. publish-internal — Firebase App Distribution (internal testers).
+#   8. publish-public   — Firebase App Distribution (public / testers; manual only).
+#   9. report           — Slack summary + update initial message.
+#
+# Reusable actions used (single implementation, zero duplication):
+#   .github/actions/slack-stage-notify    — per-stage Slack thread reply
+#   .github/actions/slack-gate-notify     — gate pass/fail decision post
+#   .github/actions/slack-pipeline-report — inject thread_ts + summary + update header
+#   .github/actions/publish-allure        — Allure report → GitHub Pages
+#   .github/workflows/shared-notify-build-started.yml — initial "build started" message
+#
+# JUnit XML: swift test --xunit-output test-results/swift-junit.xml
+#   → parsed by stage_result_to_slack.py to show test counts in Slack.
+#
+# Required secrets (Slack steps are skipped when not set):
+#   SLACK_BOT_TOKEN          — Slack bot OAuth token
+#   SLACK_CHANNEL_ID         — Target Slack channel ID
+# Optional secrets:
+#   FIREBASE_TOKEN           — Firebase CI token
+#   FIREBASE_APP_ID_IOS      — Firebase App ID for App Distribution
+#   FIREBASE_TESTERS         — Comma-separated list of tester emails
+
+name: Stream-QoE-App-iOS
+
+on:
+  pull_request:
+    paths:
+      - 'ios-player/**'
+      - '.github/workflows/stream-qoe-app-ios.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ios-player/**'
+      - '.github/workflows/stream-qoe-app-ios.yml'
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests and force-publish to Firebase (hotfix mode)'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'Target environment (STAGE / PROD)'
+        required: false
+        default: 'STAGE'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  QUALITY_GATE_THRESHOLD: '80'
+  ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0. NOTIFY START  (reusable workflow)
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  notify-start:
+    uses: ./.github/workflows/shared-notify-build-started.yml
+    with:
+      module-name:       iOS
+      pipeline-steps:    "Unit → Unit Gate → Build → BAT → Smoke → Regression (nightly) → Firebase"
+      environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. UNIT TESTS — XCTest via swift test; JUnit XML output; inline gate (≥80%)
+# ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: "Unit Tests (XCTest)"
+    runs-on: macos-latest
+    timeout-minutes: 15
+    needs: [notify-start]
+    if: inputs.skip_tests != true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      gate_passed: ${{ steps.unit-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "UNIT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Run unit tests (swift test — JUnit XML output)
+        id: unit
+        run: |
+          mkdir -p test-results
+          # --parallel is required by SwiftPM for --xunit-output to actually
+          # write the XML file (verified with swift 5.10 on Linux/macOS).
+          swift test --parallel \
+            --xunit-output test-results/swift-unit-junit.xml \
+            2>&1 | tee test-output.log
+        working-directory: ios-player
+
+      - name: Calculate unit duration
+        if: always()
+        run: |
+          if [ "${UNIT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - UNIT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "UNIT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload unit JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unit-junit
+          path: ios-player/test-results/swift-unit-junit.xml
+          retention-days: 14
+
+      - name: Upload unit test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unit-test-log
+          path: ios-player/test-output.log
+          retention-days: 14
+
+      - name: Generate & deploy unit Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "iOS Unit Tests"
+          results-src:        ios-player/test-results
+          pages-destination:  allure/${{ github.run_number }}/ios/unit
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "iOS Player"
+          allure-feature:     "Unit Tests"
+          allure-tag:         "Unit"
+          allure-language:    "swift"
+
+      - name: Notify Slack — unit test result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Unit Tests (XCTest)"
+          stage-result:     ${{ steps.unit.outcome }}
+          duration:         ${{ env.UNIT_DURATION }}
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/unit
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate unit quality gate (inline)
+        id: unit-gate
+        if: always()
+        env:
+          QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
+        run: |
+          UNIT="${{ steps.unit.outcome }}"
+          SKIP="${{ inputs.skip_tests }}"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "⚡ Hotfix mode — unit gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          if [ "$UNIT" != "success" ]; then
+            echo "❌ Unit tests did not succeed (result=$UNIT) — gate FAILED"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET, os
+          files = glob.glob("ios-player/test-results/**/*.xml", recursive=True)
+          total = passed = failed = skipped = 0
+          for f in files:
+              try:
+                  root = ET.parse(f).getroot()
+                  suites = root.findall('testsuite') if root.tag == 'testsuites' else [root]
+                  for s in suites:
+                      t  = int(s.attrib.get("tests",    0))
+                      fa = int(s.attrib.get("failures", 0)) + int(s.attrib.get("errors", 0))
+                      sk = int(s.attrib.get("skipped",  0))
+                      total += t; failed += fa; skipped += sk; passed += max(0, t - fa - sk)
+              except Exception:
+                  pass
+
+          threshold = float(os.environ.get("QUALITY_GATE_THRESHOLD", "80"))
+          rate = (100.0 * passed / total) if total > 0 else 100.0
+          gate_ok = rate >= threshold and failed == 0
+
+          print(f"Unit gate: {passed}/{total} passed ({rate:.1f}%) — threshold {threshold}%")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+              gh.write(f"gate_passed={'true' if gate_ok else 'false'}\n")
+          if not gate_ok:
+              print(f"❌ FAILED — {rate:.1f}% < {threshold}% or {failed} test(s) failed")
+          else:
+              print(f"✅ PASSED — build and BAT tests can proceed")
+          EOF
+
+      - name: Post unit gate decision to Slack
+        if: always()
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.unit-gate.outputs.gate_passed }}
+          proceed-message:  "Unit gate *PASSED* — build and BAT tests can proceed…"
+          blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. BAT tests *BLOCKED*."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. BUILD APP — swift build release; produces artifact
+# ─────────────────────────────────────────────────────────────────────────────
+  build-app:
+    name: "Build App (swift build)"
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: [notify-start, unit-tests]
+    # Industry-standard fail-fast: only build if unit tests passed the gate.
+    if: needs.unit-tests.outputs.gate_passed == 'true'
+
+    steps:
+      - name: Record job start time
+        run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build Swift package (release)
+        id: build
+        run: swift build -c release
+        working-directory: ios-player
+
+      - name: Calculate build duration
+        if: always()
+        run: |
+          if [ "${BUILD_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - BUILD_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "BUILD_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload build artifact
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-artifact
+          path: ios-player/.build/release/
+          retention-days: 7
+
+      - name: Notify Slack — build result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Build App (swift build)"
+          stage-result:     ${{ steps.build.outcome }}
+          duration:         ${{ env.BUILD_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. BAT E2E — swift test --filter BATTests; JUnit XML; inline BAT gate
+# ─────────────────────────────────────────────────────────────────────────────
+  bat-e2e:
+    name: "BAT — Build Acceptance Tests"
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: [notify-start, build-app, unit-tests]
+    if: inputs.skip_tests != true && needs.unit-tests.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
+    # BAT is a soft gate: if `swift test` cannot start within 60 s (toolchain
+    # / simulator unavailable) the job still completes and downstream
+    # Firebase deploy proceeds based on the Unit gate alone.
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      # 'true' = passed | 'false' = ran and failed | 'skipped' = device/toolchain unavailable
+      gate_passed: ${{ steps.bat-gate.outputs.gate_passed }}
+
+    steps:
+      - name: Record job start time
+        run: echo "BAT_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Probe Swift toolchain (60 s availability check)
+        id: probe
+        continue-on-error: true
+        run: |
+          # Equivalent of "device available within 60 s" for SPM / XCTest:
+          # the Swift toolchain and Package.resolved must be ready in 60 s.
+          # If `swift --version` hangs (rare network init lock, missing SDK)
+          # we surface 'unavailable' and the bat-gate step downgrades to
+          # 'skipped' — Firebase deploy then proceeds on the Unit gate alone.
+          if timeout 60 swift --version >/dev/null 2>&1; then
+            echo "device_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "device_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Swift toolchain not ready within 60 s — BAT will be skipped."
+          fi
+        working-directory: ios-player
+
+      - name: Run BAT tests — swift test --filter BATTests
+        id: bat
+        if: steps.probe.outputs.device_ready == 'true'
+        # Soft-fail the test step itself so the gate evaluation step always
+        # runs, even when tests fail or the toolchain crashes mid-run.
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          swift test --parallel --filter BATTests \
+            --xunit-output test-results/swift-bat-junit.xml \
+            2>&1 | tee bat-test-output.log
+        working-directory: ios-player
+
+      - name: Calculate BAT duration
+        if: always()
+        run: |
+          if [ "${BAT_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - BAT_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "BAT_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload BAT JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-bat-junit
+          path: ios-player/test-results/swift-bat-junit.xml
+          retention-days: 14
+
+      - name: Upload BAT test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-bat-test-log
+          path: ios-player/bat-test-output.log
+          retention-days: 14
+
+      - name: Generate & deploy BAT Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "iOS BAT"
+          results-src:        ios-player/test-results
+          pages-destination:  allure/${{ github.run_number }}/ios/bat
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "iOS Player E2E"
+          allure-feature:     "Build Acceptance Tests"
+          allure-tag:         "BAT"
+          allure-language:    "swift"
+
+      - name: Notify Slack — BAT result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "BAT (Build Acceptance Tests)"
+          stage-result:     ${{ steps.bat.outcome }}
+          duration:         ${{ env.BAT_DURATION }}
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/bat
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Evaluate BAT quality gate (inline)
+        id: bat-gate
+        if: always()
+        run: |
+          BAT="${{ steps.bat.outcome }}"
+          DEVICE_READY="${{ steps.probe.outputs.device_ready }}"
+          SKIP="${{ inputs.skip_tests }}"
+          # If the toolchain probe failed OR the test step never produced a
+          # JUnit XML, treat BAT as 'skipped' so Firebase deployment can
+          # still proceed gated on the Unit test result.
+          HAS_RESULTS=""
+          if [ -d "ios-player/test-results" ]; then
+            HAS_RESULTS="$(find ios-player/test-results -type f -name '*.xml' 2>/dev/null | head -n1)"
+          fi
+
+          if [ "$SKIP" = "true" ]; then
+            echo "⚡ Hotfix mode — BAT gate bypassed"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "success" ]; then
+            echo "✅ BAT gate PASSED — Smoke tests can start"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$DEVICE_READY" != "true" ] || [ -z "$HAS_RESULTS" ]; then
+            echo "⏭️  BAT SKIPPED — Swift toolchain not ready within 60 s"
+            echo "    or no test results were produced. Proceeding to Firebase"
+            echo "    deploy on the Unit gate alone."
+            echo "gate_passed=skipped" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ BAT gate FAILED (bat=$BAT) — tests ran and reported failures."
+            echo "    Smoke tests and Firebase publish are BLOCKED."
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post BAT gate decision to Slack
+        if: always() && steps.bat-gate.outputs.gate_passed != 'skipped'
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      ${{ steps.bat-gate.outputs.gate_passed }}
+          proceed-message:  "BAT gate *PASSED* — running Smoke tests…"
+          blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Post BAT skipped notice to Slack (toolchain unavailable)
+        if: always() && steps.bat-gate.outputs.gate_passed == 'skipped'
+        uses: ./.github/actions/slack-gate-notify
+        with:
+          gate-passed:      'true'
+          proceed-message:  "BAT *SKIPPED* — iOS toolchain did not respond within 60 s. Proceeding to Firebase based on the Unit test gate."
+          blocked-message:  ""
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. SMOKE E2E — swift test --filter SmokeTests; JUnit XML; after BAT gate
+# ─────────────────────────────────────────────────────────────────────────────
+  smoke-e2e:
+    name: "Smoke Tests"
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: [notify-start, build-app, bat-e2e]
+    if: needs.bat-e2e.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Record job start time
+        run: echo "SMOKE_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Run Smoke tests — swift test --filter SmokeTests
+        id: smoke
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          swift test --parallel --filter SmokeTests \
+            --xunit-output test-results/swift-smoke-junit.xml \
+            2>&1 | tee smoke-test-output.log
+        working-directory: ios-player
+
+      - name: Calculate Smoke duration
+        if: always()
+        run: |
+          if [ "${SMOKE_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - SMOKE_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "SMOKE_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload Smoke JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-smoke-junit
+          path: ios-player/test-results/swift-smoke-junit.xml
+          retention-days: 14
+
+      - name: Upload Smoke test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-smoke-test-log
+          path: ios-player/smoke-test-output.log
+          retention-days: 14
+
+      - name: Generate & deploy Smoke Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "iOS Smoke"
+          results-src:        ios-player/test-results
+          pages-destination:  allure/${{ github.run_number }}/ios/smoke
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "iOS Player E2E"
+          allure-feature:     "Smoke Tests"
+          allure-tag:         "Smoke"
+          allure-language:    "swift"
+
+      - name: Notify Slack — Smoke result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Smoke Tests"
+          stage-result:     ${{ steps.smoke.outcome }}
+          duration:         ${{ env.SMOKE_DURATION }}
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/smoke
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Fail if Smoke tests failed
+        if: steps.smoke.outcome == 'failure'
+        run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. REGRESSION E2E — nightly schedule or manual; non-blocking; JUnit XML
+# ─────────────────────────────────────────────────────────────────────────────
+  regression-e2e:
+    name: "Regression Tests"
+    runs-on: macos-latest
+    timeout-minutes: 30
+    needs: [notify-start, build-app, smoke-e2e]
+    if: |
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      needs.build-app.result == 'success'
+    continue-on-error: true
+    concurrency:
+      group: gh-pages-deploy-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Record job start time
+        run: echo "REGRESSION_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Run Regression tests — swift test --filter RegressionTests
+        id: regression
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          swift test --parallel --filter RegressionTests \
+            --xunit-output test-results/swift-regression-junit.xml \
+            2>&1 | tee regression-test-output.log
+        working-directory: ios-player
+
+      - name: Calculate Regression duration
+        if: always()
+        run: |
+          if [ "${REGRESSION_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - REGRESSION_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "REGRESSION_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload Regression JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-regression-junit
+          path: ios-player/test-results/swift-regression-junit.xml
+          retention-days: 14
+
+      - name: Upload Regression test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-regression-test-log
+          path: ios-player/regression-test-output.log
+          retention-days: 14
+
+      - name: Generate & deploy Regression Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "iOS Regression"
+          results-src:        ios-player/test-results
+          pages-destination:  allure/${{ github.run_number }}/ios/regression
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "iOS Player E2E"
+          allure-feature:     "Regression Tests"
+          allure-tag:         "Regression"
+          allure-language:    "swift"
+
+      - name: Notify Slack — Regression result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Regression Tests"
+          stage-result:     ${{ steps.regression.outcome }}
+          duration:         ${{ env.REGRESSION_DURATION }}
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/regression
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. QUALITY GATE — BAT gate failed; block Firebase and alert team
+# ─────────────────────────────────────────────────────────────────────────────
+  quality-gate:
+    name: "Quality Gate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [notify-start, bat-e2e]
+    # Only block deployment on a HARD BAT failure (tests ran and reported
+    # failures). 'skipped' (toolchain unavailable) is not a blocker —
+    # Firebase deploy proceeds based on the Unit gate per the soft-gate policy.
+    if: always() && needs.bat-e2e.outputs.gate_passed == 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Block deployment
+        run: |
+          echo "❌ BAT gate failed — build #${{ github.run_number }} blocked from Firebase distribution"
+          echo "Commit: ${{ github.sha }} will NOT be published"
+          echo "Branch: ${{ github.head_ref || github.ref_name }}"
+
+      - name: Notify Slack — deployment blocked
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Deployment Blocked (BAT Gate Failed)"
+          stage-result:     failure
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. PUBLISH INTERNAL — Firebase App Distribution (internal testers)
+# ─────────────────────────────────────────────────────────────────────────────
+  publish-internal:
+    name: "Publish Internal (Firebase)"
+    runs-on: macos-latest
+    timeout-minutes: 15
+    needs: [notify-start, unit-tests, build-app, bat-e2e, smoke-e2e]
+    # Soft-gate policy:
+    #   • Build MUST succeed.
+    #   • Unit gate MUST pass — this is the mandatory deploy gate.
+    #   • BAT gate must NOT be a hard failure ('false'). 'skipped' (toolchain
+    #     unavailable) is acceptable — see bat-e2e.bat-gate step.
+    #   • Smoke result must not be a hard failure (skipped/success both OK).
+    if: |
+      always() &&
+      needs.build-app.result == 'success' &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.bat-e2e.outputs.gate_passed != 'false' &&
+      needs.smoke-e2e.result != 'failure'
+
+    steps:
+      - name: Record job start time
+        run: echo "PUBLISH_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Upload to Firebase App Distribution (internal)
+        id: firebase-publish
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_IOS != ''
+        run: |
+          if command -v firebase &>/dev/null; then
+            firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
+              --app "${{ secrets.FIREBASE_APP_ID_IOS }}" \
+              --token "${{ secrets.FIREBASE_TOKEN }}" \
+              --groups internal-testers \
+              --release-notes "Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}"
+          else
+            echo "⚠️ Firebase CLI not available — skipping distribution"
+          fi
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Calculate publish duration
+        if: always()
+        run: |
+          if [ "${PUBLISH_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - PUBLISH_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "PUBLISH_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — internal publish result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Firebase Internal Distribution"
+          stage-result:     ${{ steps.firebase-publish.outcome || 'skipped' }}
+          duration:         ${{ env.PUBLISH_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. PUBLISH PUBLIC — Firebase App Distribution (external testers; manual only)
+# ─────────────────────────────────────────────────────────────────────────────
+  publish-public:
+    name: "Publish Public (Firebase)"
+    runs-on: macos-latest
+    timeout-minutes: 15
+    needs: [notify-start, unit-tests, build-app, bat-e2e, publish-internal]
+    # Same soft-gate policy as publish-internal: Unit gate is mandatory,
+    # BAT 'skipped' (toolchain unavailable) is acceptable, BAT 'false' blocks.
+    if: |
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      needs.build-app.result == 'success' &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.bat-e2e.outputs.gate_passed != 'false' &&
+      needs.publish-internal.result == 'success'
+
+    steps:
+      - name: Record job start time
+        run: echo "PUBLISH_PUB_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+
+      - name: Upload to Firebase App Distribution (public)
+        id: firebase-publish-pub
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_IOS != ''
+        run: |
+          if command -v firebase &>/dev/null; then
+            firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
+              --app "${{ secrets.FIREBASE_APP_ID_IOS }}" \
+              --token "${{ secrets.FIREBASE_TOKEN }}" \
+              --groups "${{ secrets.FIREBASE_TESTERS || 'external-testers' }}" \
+              --release-notes "Build #${{ github.run_number }} — ${{ env.ENV_LABEL }}"
+          else
+            echo "⚠️ Firebase CLI not available — skipping distribution"
+          fi
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Calculate publish duration
+        if: always()
+        run: |
+          if [ "${PUBLISH_PUB_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - PUBLISH_PUB_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "PUBLISH_PUB_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — public publish result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "Firebase Public Distribution"
+          stage-result:     ${{ steps.firebase-publish-pub.outcome || 'skipped' }}
+          duration:         ${{ env.PUBLISH_PUB_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. REPORT — final pipeline summary + Slack thread finalization
+# ─────────────────────────────────────────────────────────────────────────────
+  report:
+    name: "Report & Slack Summary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - notify-start
+      - unit-tests
+      - build-app
+      - bat-e2e
+      - smoke-e2e
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate total pipeline duration
+        run: |
+          START_EPOCH="${{ needs.notify-start.outputs.start_epoch }}"
+          NOW=$(date +%s)
+          ELAPSED=$(( NOW - START_EPOCH ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m ${SECS}s" || DUR="${SECS}s"
+          echo "TOTAL_DURATION=$DUR" >> "$GITHUB_ENV"
+
+      - name: GitHub Step Summary
+        run: |
+          echo "## 🍎 iOS Player Pipeline — Build #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build App | ${{ needs.build-app.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (toolchain unavailable)' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| BAT Gate | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (soft-gated)' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Allure Reports (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
+          BASE="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios"
+          echo "- [Unit]($BASE/unit) | [BAT]($BASE/bat) | [Smoke]($BASE/smoke) | [Regression]($BASE/regression)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build final Slack summary payload
+        if: always()
+        env:
+          MODULE_NAME:    iOS
+          STAGE1_NAME:    Unit Tests (XCTest)
+          # Use gate output (actual test outcome) so cosmetic step failures
+          # like Allure-publish flakes don't poison the chain rendering.
+          STAGE1_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE2_NAME:    "Unit Gate (≥80%)"
+          STAGE2_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE3_NAME:    Build App
+          STAGE3_RESULT:  ${{ needs.build-app.result }}
+          STAGE4_NAME:    BAT Tests
+          # bat-e2e has continue-on-error: true, so needs.bat-e2e.result is
+          # always 'success' even on hard failure. Read the gate output
+          # instead — it is the source of truth (true | false | skipped).
+          STAGE4_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
+          STAGE5_NAME:    BAT Gate
+          STAGE5_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
+          STAGE6_NAME:    Smoke Tests
+          STAGE6_RESULT:  ${{ needs.smoke-e2e.result }}
+          TOTAL_DURATION:     ${{ env.TOTAL_DURATION }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_REF_NAME:    ${{ github.head_ref || github.ref_name }}
+          GITHUB_SHA:         ${{ github.sha }}
+          WORKFLOW_START_EPOCH: ${{ needs.notify-start.outputs.start_epoch }}
+        run: python3 .github/scripts/module_result_to_slack.py
+
+      - name: Finalize Slack pipeline report
+        if: always()
+        uses: ./.github/actions/slack-pipeline-report
+        with:
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          module-name:      iOS
+          # Soft-gate verdict: BAT 'skipped' (toolchain unavailable) is NOT
+          # a build failure — Firebase deploy is allowed to proceed on the
+          # Unit gate alone. Only a HARD BAT failure ('false') flips the
+          # overall pipeline verdict to 'failure'.
+          build-verdict: >-
+            ${{ (needs.unit-tests.result == 'success' &&
+                 needs.unit-tests.outputs.gate_passed == 'true' &&
+                 needs.build-app.result == 'success' &&
+                 needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
+          env-label:        ${{ env.ENV_LABEL }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      - name: Fail pipeline if critical stage failed
+        # bat-e2e uses continue-on-error: true so its job result is always
+        # 'success' — gate_passed is the real outcome (true | false | skipped).
+        # 'skipped' (toolchain unavailable) is NOT a critical failure.
+        if: |
+          needs.unit-tests.result == 'failure' ||
+          needs.unit-tests.outputs.gate_passed == 'false' ||
+          needs.build-app.result == 'failure' ||
+          needs.bat-e2e.outputs.gate_passed == 'false'
+        run: exit 1

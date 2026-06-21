@@ -1,0 +1,18 @@
+common: &default_settings
+  app_name: QoE API
+  license_key: ${NEWRELIC_LICENSE_KEY}
+  distributed_tracing:
+    enabled: true
+  application_logging:
+    enabled: true
+    forwarding:
+      enabled: true
+      max_samples_stored: 10000
+
+development:
+  <<: *default_settings
+  app_name: QoE API (Development)
+
+production:
+  <<: *default_settings
+  app_name: QoE API (Production)

@@ -1,0 +1,84 @@
+name: Reusable DevSecOps Defaults
+
+on:
+  workflow_call:
+    outputs:
+      passed:
+        value: ${{ jobs.devsecops.outputs.passed }}
+
+jobs:
+  devsecops:
+    name: DevSecOps Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.summary.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secrets scan (Gitleaks)
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Dependency audit (web-player npm)
+        id: npm-audit
+        run: |
+          cd web-player
+          npm install --ignore-scripts --no-audit
+          npm audit --audit-level=high
+
+      - name: Generate SBOM — backend-api (Syft)
+        id: sbom-api
+        uses: anchore/sbom-action@v0
+        with:
+          path: backend-api
+          artifact-name: sbom-backend-api.spdx.json
+          format: spdx-json
+
+      - name: Generate SBOM — web-player (Syft)
+        id: sbom-web
+        uses: anchore/sbom-action@v0
+        with:
+          path: web-player
+          artifact-name: sbom-web-player.spdx.json
+          format: spdx-json
+
+      - name: Filesystem scan — backend-api (Trivy)
+        id: trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: backend-api
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Policy-as-code (Conftest)
+        id: conftest
+        run: |
+          docker run --rm \
+            -v "$PWD/platform/env:/env" \
+            -v "$PWD/platform/policy:/policy" \
+            openpolicyagent/conftest:0.48.0 \
+            test /env/backend.yaml -p /policy
+
+      - name: DevSecOps gate summary
+        id: summary
+        if: always()
+        run: |
+          GITLEAKS="${{ steps.gitleaks.outcome }}"
+          NPM="${{ steps.npm-audit.outcome }}"
+          TRIVY="${{ steps.trivy.outcome }}"
+          CONFTEST="${{ steps.conftest.outcome }}"
+          echo "Gitleaks=$GITLEAKS | npm audit=$NPM | Trivy=$TRIVY | Conftest=$CONFTEST"
+          if [ "$GITLEAKS" = "success" ] && [ "$NPM" = "success" ] && [ "$TRIVY" = "success" ] && [ "$CONFTEST" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi

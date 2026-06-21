@@ -1,0 +1,38 @@
+/* ── Reset & base ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #111;
+  --surface:   #1c1c1c;
+  --surface2:  #252525;
+  --border:    rgba(255,255,255,0.08);
+  --text:      #f0f0f0;
+  --text-muted:#999;
+  --accent:    #00b4d8;
+  --accent-fg: #fff;
+  --navbar-h:  64px;
+  --radius:    8px;
+  --radius-lg: 14px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+ul { list-style: none; }
+img { display: block; max-width: 100%; }

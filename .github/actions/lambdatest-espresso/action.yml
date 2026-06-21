@@ -1,0 +1,107 @@
+name: 'LambdaTest Espresso runner'
+description: |
+  Run a category-filtered Espresso suite on LambdaTest's real-device cloud.
+
+  Uploads the app + androidTest APK, triggers the build, polls until done,
+  and writes the JUnit XML report into the requested output directory so
+  downstream Allure publishing + gate evaluation work unchanged.
+
+  Designed to be a drop-in replacement for the local emulator path on
+  ubuntu-latest runners — no Android SDK / emulator setup required.
+
+inputs:
+  lt-username:
+    required: true
+    description: 'LambdaTest username (typically supplied via vars.LT_USERNAME)'
+  lt-access-key:
+    required: true
+    description: 'LambdaTest access key (must be supplied via secrets.LT_ACCESS_KEY)'
+  app-apk:
+    required: true
+    description: 'Path to the application debug APK'
+  test-apk:
+    required: true
+    description: 'Path to the androidTest APK'
+  annotation:
+    required: true
+    description: 'JUnit category annotation FQCN to filter (BAT / Smoke / Regression)'
+  build-name:
+    required: true
+    description: 'Human-readable build name shown in the LambdaTest dashboard'
+  device:
+    required: false
+    default: 'Pixel 6 Pro-13'
+    description: 'LambdaTest device (e.g. "Pixel 6 Pro-13"). Override via vars.LT_DEVICE_ANDROID.'
+  output-dir:
+    required: true
+    description: 'Directory the JUnit XML will be written to (consumed by publish-allure)'
+  region:
+    required: false
+    default: 'us'
+    description: 'LambdaTest region: us (default) | eu | in'
+  poll-interval:
+    required: false
+    default: '20'
+    description: 'Seconds between status polls'
+  max-poll-minutes:
+    required: false
+    default: '20'
+    description: 'Hard cap on the polling loop. Beyond this we treat the run as "device unavailable".'
+
+outputs:
+  build_id:
+    description: 'LambdaTest build ID (useful for cross-linking)'
+    value: ${{ steps.run.outputs.build_id }}
+  dashboard_url:
+    description: 'Direct link to the LambdaTest build dashboard'
+    value: ${{ steps.run.outputs.dashboard_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve runner script path
+      id: paths
+      shell: bash
+      run: |
+        # The script lives two levels up at .github/scripts; use $GITHUB_ACTION_PATH
+        # which resolves to .github/actions/lambdatest-espresso here.
+        SCRIPT="$GITHUB_ACTION_PATH/../../scripts/lambdatest_espresso_run.py"
+        if [ ! -f "$SCRIPT" ]; then
+          echo "::error title=Missing script::Expected $SCRIPT"; exit 1
+        fi
+        echo "script=$SCRIPT" >> "$GITHUB_OUTPUT"
+
+    - name: Run Espresso suite on LambdaTest
+      id: run
+      shell: bash
+      env:
+        LT_USERNAME:   ${{ inputs.lt-username }}
+        LT_ACCESS_KEY: ${{ inputs.lt-access-key }}
+      run: |
+        set -uo pipefail
+        # We deliberately do NOT `set -e` so the wrapper can surface a
+        # non-zero exit code (test failure) without aborting the action's
+        # output capture. The job-level continue-on-error / explicit
+        # outcome handling in the workflow takes care of gating.
+        python3 "${{ steps.paths.outputs.script }}" \
+          --app-apk          "${{ inputs.app-apk }}" \
+          --test-apk         "${{ inputs.test-apk }}" \
+          --annotation       "${{ inputs.annotation }}" \
+          --build-name       "${{ inputs.build-name }}" \
+          --device           "${{ inputs.device }}" \
+          --output-dir       "${{ inputs.output-dir }}" \
+          --region           "${{ inputs.region }}" \
+          --poll-interval    "${{ inputs.poll-interval }}" \
+          --max-poll-minutes "${{ inputs.max-poll-minutes }}"
+        EXIT=$?
+        echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+        # Re-emit so the outer step's outcome reflects pass/fail/skip.
+        # 0 = passed, 1 = test failure, 2 = device unavailable / no results
+        # The composite step itself exits with this code so the workflow
+        # can branch on steps.<id>.outcome (success vs failure).
+        if [ $EXIT -ne 0 ]; then
+          # exit-code 2 means "no results" — the workflow gate logic will
+          # detect a missing JUnit XML and mark gate_passed='skipped'.
+          # exit-code 1 means tests genuinely failed.
+          exit $EXIT
+        fi

@@ -1,0 +1,203 @@
+name: 'Allure Report — Generate & Publish'
+description: >
+  Install Allure CLI, generate an HTML report from a raw results directory,
+  and push it to GitHub Pages. A placeholder page is written first so the
+  deployment never fails with an empty directory.
+
+inputs:
+  stage-title:
+    description: 'Label shown in the placeholder page (e.g. "Unit Tests")'
+    required: true
+  results-src:
+    description: 'Path to the directory containing raw Allure result files'
+    required: true
+  pages-destination:
+    description: 'Destination sub-path on GitHub Pages (e.g. allure/42/web/unit)'
+    required: true
+  github-token:
+    description: 'GitHub token used to push the gh-pages branch'
+    required: true
+  # ── Optional Allure label overrides (only used when JUnit XML is converted)
+  allure-epic:
+    description: 'Allure Behaviors top-level group (e.g. "Android Player E2E")'
+    required: false
+    default: ''
+  allure-feature:
+    description: 'Allure Feature label override; defaults to inferred from stage'
+    required: false
+    default: ''
+  allure-tag:
+    description: 'Tag chip shown on each test (BAT / Smoke / Regression / Unit)'
+    required: false
+    default: ''
+  allure-language:
+    description: 'Language label (e.g. "kotlin", "swift", "java")'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Allure CLI
+      id: allure-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/allure-cli
+        key: allure-cli-${{ runner.os }}-2.29.0
+
+    - name: Install Allure CLI
+      shell: bash
+      run: |
+        ALLURE_DIR="${{ runner.temp }}/allure-cli"
+        if [ -f "$ALLURE_DIR/bin/allure" ]; then
+          echo "✅ Allure CLI restored from cache"
+        else
+          echo "📦 Installing allure-commandline@2.29.0"
+          npm install -g allure-commandline@2.29.0 --prefix "$ALLURE_DIR"
+        fi
+        echo "$ALLURE_DIR/bin" >> "$GITHUB_PATH"
+
+    - name: Generate Allure report
+      shell: bash
+      env:
+        STAGE_TITLE:        ${{ inputs.stage-title }}
+        SRC:                ${{ inputs.results-src }}
+        GITHUB_WORKFLOW:    ${{ github.workflow }}
+        GITHUB_REPOSITORY:  ${{ github.repository }}
+        GITHUB_RUN_ID:      ${{ github.run_id }}
+        GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+        GITHUB_SERVER_URL:  ${{ github.server_url }}
+        ALLURE_REPORT_NAME: ${{ inputs.stage-title }}
+        # Picked up by .github/scripts/junit_to_allure.py to enrich each test
+        # case with Behaviors-tree labels (Epic → Feature → Story) and group
+        # chips (BAT / Smoke / Regression / Unit).
+        ALLURE_EPIC:     ${{ inputs.allure-epic }}
+        ALLURE_FEATURE:  ${{ inputs.allure-feature }}
+        ALLURE_TAG:      ${{ inputs.allure-tag }}
+        ALLURE_LANGUAGE: ${{ inputs.allure-language }}
+      run: |
+        mkdir -p stage-allure-report
+        # Ensure Jekyll ignores this directory (required for Allure's asset paths)
+        touch stage-allure-report/.nojekyll
+        printf '<html><head><title>%s</title></head><body><h2>No results for %s — run #%s.</h2></body></html>\n' \
+          "$STAGE_TITLE" "$STAGE_TITLE" "$GITHUB_RUN_NUMBER" \
+          > stage-allure-report/index.html
+
+        if [ ! -d "$SRC" ] || [ -z "$(ls -A "$SRC" 2>/dev/null)" ]; then
+          echo "⚠️  No results found in $SRC — placeholder kept"
+          exit 0
+        fi
+
+        # Detect what we have under $SRC:
+        #   • any *-result.json → real Allure results (Android JUnit4 adapter,
+        #                         Web Allure reporter) — feed directly to allure
+        #   • only *.xml        → JUnit/xUnit (Swift `swift test --xunit-output`,
+        #                         plain XCTest) — convert to Allure JSON first
+        #                         so the report shows real test cases instead
+        #                         of the empty "Allure Report Unknown" page.
+        ALLURE_INPUT="$SRC"
+        HAS_ALLURE_JSON=$(find "$SRC" -type f -name '*-result.json' -print -quit 2>/dev/null)
+        HAS_JUNIT_XML=$(find "$SRC" -type f -name '*.xml' -print -quit 2>/dev/null)
+
+        if [ -z "$HAS_ALLURE_JSON" ] && [ -n "$HAS_JUNIT_XML" ]; then
+          echo "ℹ️  No Allure JSON in $SRC — converting JUnit XML to Allure format"
+          ALLURE_INPUT="$RUNNER_TEMP/allure-input"
+          rm -rf "$ALLURE_INPUT"
+          python3 "$GITHUB_ACTION_PATH/../../scripts/junit_to_allure.py" \
+            --input  "$SRC" \
+            --output "$ALLURE_INPUT"
+        fi
+
+        if allure generate "$ALLURE_INPUT" -o stage-allure-report --clean; then
+          echo "✅ Allure report generated from $ALLURE_INPUT"
+        else
+          echo "⚠️  allure generate failed — placeholder kept"
+        fi
+
+    # Robust gh-pages deploy:
+    #   • parallel workflows (web/android/ios) push to the SAME gh-pages branch.
+    #   • a per-workflow concurrency group cannot serialize across workflows, so
+    #     concurrent pushes race and one always loses.
+    #   • we retry up to 6 times with exponential backoff + random jitter so the
+    #     loser pulls the latest tip and re-pushes successfully.
+    - name: Deploy Allure to gh-pages (with retry & jitter)
+      shell: bash
+      env:
+        GH_TOKEN:      ${{ inputs.github-token }}
+        REPO:          ${{ github.repository }}
+        TARGET_FOLDER: ${{ inputs.pages-destination }}
+        SRC_FOLDER:    stage-allure-report
+        ACTOR:         ${{ github.actor }}
+        RUN_NUMBER:    ${{ github.run_number }}
+      run: |
+        set -uo pipefail
+
+        REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+        WORK_DIR="${RUNNER_TEMP}/gh-pages-deploy"
+        SRC_ABS="${GITHUB_WORKSPACE}/${SRC_FOLDER}"
+
+        if [ ! -d "$SRC_ABS" ]; then
+          echo "❌ Source folder not found: $SRC_ABS"
+          exit 1
+        fi
+
+        git config --global user.name  "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        MAX_ATTEMPTS=6
+        SUCCESS=0
+
+        for attempt in $(seq 1 $MAX_ATTEMPTS); do
+          if [ $attempt -gt 1 ]; then
+            # Exponential backoff: 5, 10, 20, 40, 80 seconds + random 0-15 jitter
+            BASE=$(( 5 * (1 << (attempt - 2)) ))
+            JITTER=$(( RANDOM % 16 ))
+            SLEEP_S=$(( BASE + JITTER ))
+            echo "::group::🔄 Attempt ${attempt}/${MAX_ATTEMPTS} — backing off ${SLEEP_S}s"
+            sleep $SLEEP_S
+            echo "::endgroup::"
+          fi
+
+          rm -rf "$WORK_DIR"
+
+          # Shallow-clone gh-pages (or initialize if it doesn't exist)
+          if git clone --depth 1 --branch gh-pages --quiet "$REPO_URL" "$WORK_DIR" 2>/dev/null; then
+            echo "✅ Cloned existing gh-pages branch (attempt ${attempt})"
+          else
+            echo "ℹ️  gh-pages branch missing — creating from scratch"
+            mkdir -p "$WORK_DIR"
+            ( cd "$WORK_DIR" && git init -q -b gh-pages && git remote add origin "$REPO_URL" )
+          fi
+
+          cd "$WORK_DIR"
+
+          # Copy the freshly-generated report into the target sub-folder.
+          # Wipe ONLY this stage's sub-folder (preserves siblings written by other workflows).
+          mkdir -p "$TARGET_FOLDER"
+          rm -rf "${TARGET_FOLDER:?}/"* "${TARGET_FOLDER:?}/".[!.]* 2>/dev/null || true
+          cp -R "$SRC_ABS/." "$TARGET_FOLDER/"
+
+          git add "$TARGET_FOLDER"
+          if git diff --cached --quiet; then
+            echo "ℹ️  No changes to push (report already up-to-date)"
+            SUCCESS=1
+            break
+          fi
+
+          git commit -q -m "Allure: ${TARGET_FOLDER} (build #${RUN_NUMBER}, attempt ${attempt}) [skip ci]"
+
+          if git push --quiet origin gh-pages 2>&1; then
+            echo "✅ Deployed: https://$(echo "$REPO" | cut -d/ -f1).github.io/$(echo "$REPO" | cut -d/ -f2)/${TARGET_FOLDER}/"
+            SUCCESS=1
+            break
+          else
+            echo "⚠️  Push rejected (likely concurrent push from another workflow) — will retry"
+          fi
+        done
+
+        if [ "$SUCCESS" -ne 1 ]; then
+          echo "::warning title=Allure publish failed::Could not push Allure report to gh-pages after ${MAX_ATTEMPTS} attempts (likely persistent push contention). The test results are still valid; only the hosted report is missing."
+          # Do NOT exit non-zero — Allure hosting is cosmetic. Tests already
+          # passed/failed independently and the parent job's verdict must
+          # reflect the TEST outcome, not the report-publishing outcome.
+        fi

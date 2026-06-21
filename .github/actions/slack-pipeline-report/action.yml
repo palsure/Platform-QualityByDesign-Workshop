@@ -1,0 +1,81 @@
+name: 'Slack Pipeline Report — Finalize Thread'
+description: >
+  Finalizes the pipeline's Slack thread in three steps:
+    1. Inject thread_ts into the module summary payload (module-slack-payload.json).
+    2. Send the pipeline summary as a Slack thread reply.
+    3. Update the initial "build started" message with the final ✅/❌ outcome.
+  Called once at the end of every module's report job (API, WEB, ANDROID, iOS).
+  Requires module-slack-payload.json to already exist in the working directory
+  (written by module_result_to_slack.py before this action is called).
+
+inputs:
+  thread-ts:
+    description: 'Slack thread_ts captured by notify-start — all replies go here'
+    required: true
+  module-name:
+    description: 'Module label used in the updated header — e.g. "API", "WEB", "ANDROID", "iOS"'
+    required: true
+  build-verdict:
+    description: '"success" | "failure" — drives the ✅/❌ in the updated header message'
+    required: true
+  env-label:
+    description: 'Environment label shown in the metadata line (STAGE / PROD)'
+    default: 'STAGE'
+  slack-bot-token:
+    description: 'Slack bot OAuth token'
+    required: true
+  slack-channel-id:
+    description: 'Slack channel ID'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # ── Step 1: add thread_ts to the module summary payload ──────────────────
+    - name: Inject thread_ts into summary payload
+      if: inputs.thread-ts != ''
+      shell: bash
+      env:
+        THREAD_TS: ${{ inputs.thread-ts }}
+      run: |
+        python3 - <<'PYEOF'
+        import json, os, pathlib
+        ts = os.environ.get("THREAD_TS", "")
+        if ts:
+            p = json.loads(pathlib.Path("module-slack-payload.json").read_text())
+            p["thread_ts"] = ts
+            pathlib.Path("module-slack-payload.json").write_text(json.dumps(p))
+        PYEOF
+
+    # ── Step 2: send the summary as a thread reply ────────────────────────────
+    - name: Send overall summary Slack reply
+      if: inputs.slack-bot-token != '' && inputs.slack-channel-id != ''
+      uses: slackapi/slack-github-action@v2.1.1
+      continue-on-error: true
+      with:
+        method: chat.postMessage
+        token: ${{ inputs.slack-bot-token }}
+        payload-file-path: ./module-slack-payload.json
+
+    # ── Step 3: update the "build started" header with the final verdict ──────
+    - name: Update initial Slack message with build outcome
+      if: inputs.slack-bot-token != '' && inputs.slack-channel-id != ''
+      shell: bash
+      continue-on-error: true
+      env:
+        SLACK_BOT_TOKEN:   ${{ inputs.slack-bot-token }}
+        SLACK_CHANNEL_ID:  ${{ inputs.slack-channel-id }}
+        THREAD_TS:         ${{ inputs.thread-ts }}
+        MODULE_NAME:       ${{ inputs.module-name }}
+        BUILD_VERDICT:     ${{ inputs.build-verdict }}
+        ENV_LABEL:         ${{ inputs.env-label }}
+        GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_SHA:        ${{ github.sha }}
+        GITHUB_HEAD_REF:   ${{ github.head_ref }}
+        GITHUB_REF_NAME:   ${{ github.ref_name }}
+        GITHUB_ACTOR:      ${{ github.actor }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_PR_NUMBER:  ${{ github.event.pull_request.number }}
+        GITHUB_RUN_ID:     ${{ github.run_id }}
+      run: python3 .github/scripts/update_build_message.py

@@ -1,0 +1,144 @@
+# ── OS ──────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── IDE / editors ───────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.factorypath
+.springBeans
+.sts4-cache
+.apt_generated
+out/
+
+# ── Environment & secrets ───────────────────────────────────────────
+.env
+.env.*
+!.env.example
+local.properties
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+!debug.keystore
+
+# ── Dependencies ────────────────────────────────────────────────────
+node_modules/
+.gradle/
+.m2/
+.pnpm-store/
+
+# ── Build outputs ─────────────────────────────────────────────────────
+build/
+dist/
+dist-ssr/
+target/
+bin/
+*.class
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Android
+android-player/app/build/
+android-player/.gradle/
+android-player/local.properties
+.externalNativeBuild/
+.cxx/
+captures/
+
+# iOS / Swift
+ios-player/.build/
+ios-player/DerivedData/
+*.xcuserstate
+*.xcuserdata/
+xcuserdata/
+
+# Backend API (Gradle)
+backend-api/bin/
+backend-api/build/
+backend-api/.gradle/
+
+# Web player
+web-player/dist/
+web-player/node_modules/
+
+# Automation tests
+qoe-automation-tests/target/
+
+# ── Test & report artifacts ─────────────────────────────────────────
+test-results/
+coverage/
+allure-results/
+allure-report/
+playwright-report/
+playwright-results.json
+playwright/.cache/
+pytest_cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+htmlcov/
+.nyc_output/
+test-output/
+surefire-reports/
+failsafe-reports/
+
+# ── CI / workflow generated ───────────────────────────────────────────
+acceptance-gate-manifest.json
+acceptance-slack-payload.json
+api-slack-payload.json
+api-test-report.json
+module-slack-payload.json
+pr-comment.md
+slack-payload.json
+*-slack-payload.json
+
+# ── Logs & temp ───────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+tmp/
+temp/
+.tmp/
+*.tmp
+*.local
+
+# ── Docker overrides ──────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Firebase / mobile tooling (local) ─────────────────────────────────
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+google-services.json.local
+
+# ── Large local media (generated HLS / sample videos) ─────────────────
+test-videos/*
+!test-videos/.gitkeep
+
+# ── Presentations (DevOpsDays materials — local reference only) ───────
+presentations/

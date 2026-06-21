@@ -1,0 +1,663 @@
+# Per-platform acceptance jobs → aggregate pass rate → 80% quality gate → optional GitHub Release on main.
+#
+# Pass rate = sum(passed) / sum(total) across all platform-summary.json files.
+# Platforms: api, web, android, ios, automation (matches demo API /api/v1/pipeline-runs).
+#
+# Optional Slack notification secrets:
+#   SLACK_BOT_TOKEN   — bot OAuth token
+#   SLACK_CHANNEL_ID  — channel ID (e.g. C012AB3CD)
+
+name: Stream-QoE-App-Release
+
+# Run manually only — individual module pipelines handle per-module CI on push/PR.
+# Use this workflow for a full cross-module acceptance sweep before a release.
+on:
+  workflow_dispatch:
+
+env:
+  QUALITY_GATE_THRESHOLD: '80'
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Notify Slack: build started (reusable workflow) ──────────────────────
+  # Posts the initial "build started" message and captures thread_ts so
+  # every downstream job can thread its own update under it. Same pattern
+  # the per-module pipelines (API/WEB/ANDROID/iOS) use — keeps the release
+  # build's Slack output visually identical to the rest of the family.
+  notify-start:
+    uses: ./.github/workflows/shared-notify-build-started.yml
+    with:
+      module-name:       RELEASE
+      # Threshold inlined as a literal: the env context is not available
+      # inside `with:` of a reusable workflow call (GitHub Actions limit).
+      # If QUALITY_GATE_THRESHOLD ever changes, update both spots.
+      pipeline-steps:    "Detect changes → Acceptance (5 platforms) → Quality gate ≥80% → GitHub Release"
+      environment-label: PROD
+    secrets:
+      SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  # ── Detect which modules changed ─────────────────────────────────────────
+  # On push to main every acceptance job always runs (release gate).
+  # On PRs / develop only the changed module jobs run.
+  changes:
+    name: Detect changed modules
+    runs-on: ubuntu-latest
+    needs: notify-start
+    outputs:
+      api:         ${{ steps.filter.outputs.api }}
+      web:         ${{ steps.filter.outputs.web }}
+      android:     ${{ steps.filter.outputs.android }}
+      ios:         ${{ steps.filter.outputs.ios }}
+      automation:  ${{ steps.filter.outputs.automation }}
+      is_main:     ${{ github.ref == 'refs/heads/main' }}
+      # any_changed = at least one acceptance job will actually run.
+      # On main everything always runs (release gate), so it's true.
+      # On any other ref it's true only if dorny/paths-filter matched
+      # one of the five tracked modules. Used by quality-gate's `if:`
+      # to skip cleanly when a workflow_dispatch run has nothing to do.
+      any_changed: ${{ steps.any.outputs.any_changed }}
+      start_epoch: ${{ steps.ts.outputs.start_epoch }}
+    steps:
+      - name: Record workflow start time
+        id: ts
+        run: echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'backend-api/**'
+            web:
+              - 'web-player/**'
+            android:
+              - 'android-player/**'
+            ios:
+              - 'ios-player/**'
+            automation:
+              - 'qoe-automation-tests/**'
+      - name: Compute any_changed
+        id: any
+        env:
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+          API:        ${{ steps.filter.outputs.api }}
+          WEB:        ${{ steps.filter.outputs.web }}
+          ANDROID:    ${{ steps.filter.outputs.android }}
+          IOS:        ${{ steps.filter.outputs.ios }}
+          AUTOMATION: ${{ steps.filter.outputs.automation }}
+        run: |
+          if [ "$IS_MAIN" = "true" ] \
+            || [ "$API" = "true" ] || [ "$WEB" = "true" ] \
+            || [ "$ANDROID" = "true" ] || [ "$IOS" = "true" ] \
+            || [ "$AUTOMATION" = "true" ]; then
+            echo "any_changed=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "any_changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No changes detected::No tracked module changed; quality-gate and release will be skipped."
+          fi
+
+  acceptance-api:
+    name: Acceptance — API (Spring)
+    runs-on: ubuntu-latest
+    needs: [notify-start, changes]
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.is_main == 'true'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: qoe_user
+          POSTGRES_PASSWORD: qoe_password
+          POSTGRES_DB: qoe_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Record start time
+        run: echo "API_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-api-${{ hashFiles('backend-api/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-api-
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: backend-api
+      - name: Run API E2E tests (acceptance — full HTTP stack)
+        id: api_tests
+        continue-on-error: true
+        run: ./gradlew e2eTest --no-daemon
+        working-directory: backend-api
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/qoe_db
+          SPRING_DATASOURCE_USERNAME: qoe_user
+          SPRING_DATASOURCE_PASSWORD: qoe_password
+      - name: Summarize JUnit (API)
+        if: always()
+        run: |
+          python3 .github/scripts/junit_to_summary.py api backend-api/build/test-results \
+            || echo '{"platform":"api","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-api-summary
+          path: platform-summary.json
+      - name: Calculate API acceptance duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${API_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "API_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — API acceptance result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — API (Spring)"
+          stage-result:     ${{ steps.api_tests.outcome }}
+          duration:         ${{ env.API_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        backend-api/build/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  acceptance-web:
+    name: Acceptance — Web (Vitest + Playwright)
+    runs-on: ubuntu-latest
+    needs: [notify-start, changes]
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.is_main == 'true'
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web-player
+
+      # ── Vitest (unit) ─────────────────────────────────────────────────────
+      - name: Record Vitest start time
+        run: echo "VITEST_START=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Vitest (JUnit)
+        id: vitest
+        continue-on-error: true
+        run: npm test
+        working-directory: web-player
+      - name: Summarize Vitest JUnit
+        if: always()
+        run: |
+          mkdir -p web-merge
+          python3 .github/scripts/junit_to_summary.py web-vitest web-player/test-results \
+            || echo '{"platform":"web-vitest","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+          mv platform-summary.json web-merge/vitest.json
+      - name: Calculate Vitest duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${VITEST_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "VITEST_DURATION=$DUR" >> "$GITHUB_ENV"
+      # Two separate Slack notifications instead of one combined: Vitest
+      # is unit-level, Playwright is E2E. stage_result_to_slack.py uses
+      # one source per call (JUnit XML OR Playwright JSON, not both), so
+      # splitting is the cleanest way to surface accurate per-framework
+      # counts in the thread.
+      - name: Notify Slack — Web Vitest result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — Web (Vitest unit)"
+          stage-result:     ${{ steps.vitest.outcome }}
+          duration:         ${{ env.VITEST_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        web-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      # ── Playwright (E2E) ──────────────────────────────────────────────────
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: web-player
+      - name: Record Playwright start time
+        run: echo "PLAYWRIGHT_START=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Playwright E2E
+        id: e2e
+        continue-on-error: true
+        run: npx playwright test --project=chromium
+        working-directory: web-player
+        env:
+          CI: true
+      - name: Summarize Playwright JSON
+        if: always()
+        # playwright.config.ts writes the JSON to a stage-suffixed filename:
+        #   playwright-results-${STAGE}.json   (STAGE defaults to 'e2e')
+        # so the source path here matches what Playwright actually wrote.
+        run: |
+          python3 .github/scripts/playwright_to_summary.py web-player/playwright-results-e2e.json \
+            || echo '{"platform":"web","passed":0,"failed":1,"skipped":0,"total":1}' > playwright-summary.json
+          mv playwright-summary.json web-merge/playwright.json
+      - name: Calculate Playwright duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${PLAYWRIGHT_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "PLAYWRIGHT_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — Web Playwright result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — Web (Playwright E2E)"
+          stage-result:     ${{ steps.e2e.outcome }}
+          duration:         ${{ env.PLAYWRIGHT_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          playwright-json:  web-player/playwright-results-e2e.json
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+      # ── Combined gate input ───────────────────────────────────────────────
+      - name: Combine web summaries
+        if: always()
+        run: |
+          python3 .github/scripts/combine_web_summaries.py web-merge/vitest.json web-merge/playwright.json \
+            || echo '{"platform":"web","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-web-summary
+          path: platform-summary.json
+
+  acceptance-android:
+    name: Acceptance — Android
+    runs-on: ubuntu-latest
+    needs: [notify-start, changes]
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.is_main == 'true'
+    steps:
+      - name: Record start time
+        run: echo "ANDROID_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-android-acc-${{ hashFiles('android-player/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-android-acc-
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: android-player
+      - name: Run Android unit tests
+        id: android_tests
+        continue-on-error: true
+        run: ./gradlew test --no-daemon
+        working-directory: android-player
+      - name: Summarize JUnit (Android)
+        if: always()
+        run: |
+          python3 .github/scripts/junit_to_summary.py android android-player \
+            || echo '{"platform":"android","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-android-summary
+          path: platform-summary.json
+      - name: Calculate Android acceptance duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${ANDROID_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "ANDROID_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — Android acceptance result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — Android"
+          stage-result:     ${{ steps.android_tests.outcome }}
+          duration:         ${{ env.ANDROID_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        android-player/app/build/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  acceptance-ios:
+    name: Acceptance — iOS (Swift)
+    runs-on: macos-latest
+    needs: [notify-start, changes]
+    if: needs.changes.outputs.ios == 'true' || needs.changes.outputs.is_main == 'true'
+    steps:
+      - name: Record start time
+        run: echo "IOS_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - name: Run Swift tests
+        id: swift_tests
+        continue-on-error: true
+        # --parallel is required for --xunit-output to actually write the
+        # XML file (verified with swift 5.10 on Linux/macOS). Output dir
+        # mirrors the per-module iOS pipeline so junit-dir below works.
+        run: |
+          mkdir -p test-results
+          swift test --parallel \
+            --xunit-output test-results/swift-junit.xml \
+            2>&1 | tee swift-test.log
+        working-directory: ios-player
+      - name: Summarize Swift log
+        if: always()
+        run: |
+          python3 .github/scripts/swift_log_to_summary.py ios-player/swift-test.log \
+            || echo '{"platform":"ios","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-ios-summary
+          path: platform-summary.json
+      - name: Calculate iOS acceptance duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${IOS_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "IOS_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — iOS acceptance result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — iOS (Swift)"
+          stage-result:     ${{ steps.swift_tests.outcome }}
+          duration:         ${{ env.IOS_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  acceptance-automation:
+    name: Acceptance — Automation (qoe-tests)
+    runs-on: ubuntu-latest
+    needs: [notify-start, changes]
+    if: needs.changes.outputs.automation == 'true' || needs.changes.outputs.is_main == 'true'
+    steps:
+      - name: Record start time
+        run: echo "AUTO_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - name: Start Postgres + API (Docker)
+        run: docker compose up -d postgres backend
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 36); do
+            if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "backend up"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs backend
+          exit 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-acc-${{ hashFiles('qoe-automation-tests/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-acc-
+      - name: Run stable API + validation tests
+        id: mvn_tests
+        continue-on-error: true
+        run: mvn -B test -Dapi.base.url=http://localhost:8080 -Dtest=QoEMetricsApiTest,QoEValidationTest
+        working-directory: qoe-automation-tests
+      - name: Summarize JUnit (automation)
+        if: always()
+        run: |
+          python3 .github/scripts/junit_to_summary.py automation qoe-automation-tests/target/surefire-reports \
+            || echo '{"platform":"automation","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - name: Tear down Docker
+        if: always()
+        run: docker compose down -v || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-automation-summary
+          path: platform-summary.json
+      - name: Calculate Automation duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${AUTO_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "AUTO_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — Automation acceptance result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "Acceptance — Automation (qoe-tests)"
+          stage-result:     ${{ steps.mvn_tests.outcome }}
+          duration:         ${{ env.AUTO_DURATION }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        qoe-automation-tests/target/surefire-reports
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  quality-gate:
+    name: Quality gate (80% aggregate)
+    runs-on: ubuntu-latest
+    needs:
+      - notify-start
+      - changes
+      - acceptance-api
+      - acceptance-web
+      - acceptance-android
+      - acceptance-ios
+      - acceptance-automation
+    # Run whenever at least one acceptance job ran (success or failure).
+    # Skipped jobs (module unchanged) are ignored by the gate script.
+    # When `any_changed` is false (manual run on a non-main ref with no
+    # tracked module changes) every acceptance job was skipped, so there
+    # are no platform-summary.json artifacts to merge — skip the gate
+    # cleanly instead of failing the merge script.
+    if: always() && needs.changes.result == 'success' && needs.changes.outputs.any_changed == 'true'
+    outputs:
+      approved: ${{ steps.gate.outputs.approved }}
+      overall_pass_rate: ${{ steps.gate.outputs.overall_pass_rate }}
+      gate_threshold: ${{ steps.gate.outputs.gate_threshold }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acceptance-api-summary
+          path: gate-input/api
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acceptance-web-summary
+          path: gate-input/web
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acceptance-android-summary
+          path: gate-input/android
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acceptance-ios-summary
+          path: gate-input/ios
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acceptance-automation-summary
+          path: gate-input/automation
+      - name: Merge summaries & export outputs
+        id: gate
+        run: |
+          SUMMARY_ROOT=gate-input QUALITY_GATE_THRESHOLD="${QUALITY_GATE_THRESHOLD}" python3 .github/scripts/merge_platform_summaries.py
+          echo "approved=$(jq -r .approved acceptance-gate-manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "overall_pass_rate=$(jq -r .overallPassRatePercent acceptance-gate-manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "gate_threshold=$(jq -r .gateThresholdPercent acceptance-gate-manifest.json)" >> "$GITHUB_OUTPUT"
+          jq -e '.approved == true' acceptance-gate-manifest.json > /dev/null
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-gate-manifest
+          path: acceptance-gate-manifest.json
+      - name: Build Slack payload
+        if: always()
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          WORKFLOW_START_EPOCH: ${{ needs.changes.outputs.start_epoch }}
+        run: python3 .github/scripts/acceptance_gate_to_slack.py acceptance-gate-manifest.json
+      - name: Inject channel + thread_ts into payload
+        # acceptance_gate_to_slack.py writes a payload without a channel
+        # or thread_ts. Inject both here so the message lands as a reply
+        # in the build's thread instead of a brand-new top-level message.
+        if: always() && env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
+        env:
+          THREAD_TS: ${{ needs.notify-start.outputs.thread_ts }}
+        run: |
+          jq --arg channel "$SLACK_CHANNEL_ID" --arg ts "$THREAD_TS" \
+             '. + {channel: $channel} + (if $ts != "" then {thread_ts: $ts} else {} end)' \
+             acceptance-slack-payload.json > acceptance-slack-payload.threaded.json
+          mv acceptance-slack-payload.threaded.json acceptance-slack-payload.json
+      - name: Send Slack notification
+        if: always() && env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload-file-path: ./acceptance-slack-payload.json
+
+  release:
+    name: Create GitHub Release
+    needs: [notify-start, quality-gate]
+    runs-on: ubuntu-latest
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.quality-gate.result == 'success' &&
+      needs.quality-gate.outputs.approved == 'true'
+    permissions:
+      contents: write
+    outputs:
+      release_url: ${{ steps.publish.outputs.release_url }}
+      release_tag: ${{ steps.publish.outputs.release_tag }}
+    steps:
+      - name: Record start time
+        run: echo "RELEASE_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - name: Publish release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="acceptance-${{ github.run_number }}"
+          gh release create "$TAG" \
+            --title "Acceptance gate passed (${{ needs.quality-gate.outputs.overall_pass_rate }}%)" \
+            --notes "Aggregate test pass rate met the ${{ needs.quality-gate.outputs.gate_threshold }}% quality gate across api, web, android, ios, and automation jobs."
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "release_url=https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_OUTPUT"
+      - name: Calculate Release duration
+        if: always()
+        run: |
+          ELAPSED=$(( $(date +%s) - ${RELEASE_START:-$(date +%s)} ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+          echo "RELEASE_DURATION=$DUR" >> "$GITHUB_ENV"
+      - name: Notify Slack — GitHub Release published
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      RELEASE
+          stage-name:       "GitHub Release Published"
+          stage-result:     ${{ steps.publish.outcome }}
+          duration:         ${{ env.RELEASE_DURATION }}
+          report-url:       ${{ steps.publish.outputs.release_url }}
+          link-label:       ":package: View Release"
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+
+  # ── Finalize Slack thread ────────────────────────────────────────────────
+  # Edits the original "build started" header so the parent message
+  # carries the final ✅/❌ verdict. Without this you have to scroll the
+  # thread to know whether the build passed; with it the channel-level
+  # view tells you at a glance.
+  notify-final:
+    name: Notify — final summary
+    runs-on: ubuntu-latest
+    needs:
+      - notify-start
+      - quality-gate
+      - release
+    if: always() && needs.notify-start.outputs.thread_ts != ''
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update Slack header with final verdict
+        env:
+          SLACK_BOT_TOKEN:   ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID:  ${{ secrets.SLACK_CHANNEL_ID }}
+          THREAD_TS:         ${{ needs.notify-start.outputs.thread_ts }}
+          # Verdict resolution:
+          #  • gate skipped      → 'skipped' (no tracked module changed —
+          #    workflow had nothing to do; render a neutral ⚪ header,
+          #    not a misleading red ❌ Failed).
+          #  • gate success + approved → 'success' (release proceeds; on
+          #    non-main the release job itself is skipped by design but
+          #    the acceptance result is still the meaningful verdict).
+          #  • everything else   → 'failure'.
+          BUILD_VERDICT: >-
+            ${{
+              needs.quality-gate.result == 'skipped' && 'skipped'
+              || (needs.quality-gate.result == 'success' && needs.quality-gate.outputs.approved == 'true') && 'success'
+              || 'failure'
+            }}
+          ENV_LABEL:         PROD
+          MODULE_NAME:       RELEASE
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA:        ${{ github.sha }}
+          GITHUB_HEAD_REF:   ${{ github.head_ref }}
+          GITHUB_REF_NAME:   ${{ github.ref_name }}
+          GITHUB_ACTOR:      ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_PR_NUMBER:  ${{ github.event.pull_request.number }}
+          GITHUB_RUN_ID:     ${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_BOT_TOKEN:-}" ] || [ -z "${SLACK_CHANNEL_ID:-}" ]; then
+            echo "Slack secrets not configured — skipping header update."
+            exit 0
+          fi
+          python3 .github/scripts/update_build_message.py

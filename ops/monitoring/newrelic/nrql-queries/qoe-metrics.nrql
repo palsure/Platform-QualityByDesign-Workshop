@@ -1,0 +1,38 @@
+-- QoE Metrics Overview
+SELECT 
+  count(*) as 'Total Sessions',
+  average(startupTime) as 'Avg Startup Time (ms)',
+  average(totalBufferingTime) as 'Avg Buffering Time (s)',
+  sum(errorCount) as 'Total Errors',
+  average(currentBitrate) as 'Avg Bitrate (bps)'
+FROM QoEMetric
+WHERE timestamp >= SINCE 1 hour ago
+FACET platform
+
+-- Quality Distribution
+SELECT count(*) FROM QoEMetric
+WHERE timestamp >= SINCE 1 hour ago
+FACET playbackQuality, platform
+
+-- Error Rate by Platform
+SELECT 
+  filter(count(*), WHERE errorCount > 0) / count(*) * 100 as 'Error Rate %'
+FROM QoEMetric
+WHERE timestamp >= SINCE 1 hour ago
+FACET platform
+TIMESERIES
+
+-- Buffering Events Over Time
+SELECT average(totalBufferingTime) as 'Avg Buffering Time'
+FROM QoEMetric
+WHERE timestamp >= SINCE 1 hour ago
+FACET platform
+TIMESERIES
+
+-- Bitrate Switches
+SELECT average(bitrateSwitches) as 'Avg Bitrate Switches'
+FROM QoEMetric
+WHERE timestamp >= SINCE 1 hour ago
+FACET platform
+
+-- CI pipeline validation: demo branch (comment only; no query change)

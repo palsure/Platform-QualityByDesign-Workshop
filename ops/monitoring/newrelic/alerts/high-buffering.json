@@ -1,0 +1,21 @@
+{
+  "name": "High Buffering Time",
+  "type": "static",
+  "condition": {
+    "terms": [
+      {
+        "duration": "5",
+        "operator": "above",
+        "priority": "warning",
+        "threshold": "10",
+        "time_function": "all"
+      }
+    ],
+    "nrql": {
+      "query": "SELECT average(totalBufferingTime) FROM QoEMetric WHERE timestamp >= SINCE 5 minutes ago FACET platform"
+    }
+  },
+  "enabled": true,
+  "violation_time_limit_seconds": 3600,
+  "notification_channels": []
+}

@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QoE Metrics Schema",
+  "description": "Schema for Quality of Experience metrics collected from video streaming players",
+  "type": "object",
+  "required": [
+    "platform",
+    "videoId",
+    "sessionId",
+    "timestamp",
+    "metrics"
+  ],
+  "properties": {
+    "platform": {
+      "type": "string",
+      "enum": ["web", "ios", "android", "roku", "apple-tv", "android-tv"],
+      "description": "Platform where metrics were collected"
+    },
+    "videoId": {
+      "type": "string",
+      "description": "Unique identifier for the video being played"
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "Unique identifier for the playback session"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when metrics were collected"
+    },
+    "deviceInfo": {
+      "type": "object",
+      "properties": {
+        "deviceType": {
+          "type": "string",
+          "description": "Type of device (mobile, tablet, desktop, tv)"
+        },
+        "os": {
+          "type": "string",
+          "description": "Operating system and version"
+        },
+        "browser": {
+          "type": "string",
+          "description": "Browser name and version (for web platform)"
+        },
+        "screenResolution": {
+          "type": "string",
+          "description": "Screen resolution (e.g., '1920x1080')"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "playbackState",
+        "currentTime",
+        "duration"
+      ],
+      "properties": {
+        "playbackState": {
+          "type": "string",
+          "enum": ["playing", "paused", "buffering", "ended", "error"],
+          "description": "Current playback state"
+        },
+        "currentTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Current playback time in seconds"
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total video duration in seconds"
+        },
+        "bufferingEvents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startTime": {
+                "type": "number",
+                "description": "Buffering start time in seconds"
+              },
+              "endTime": {
+                "type": "number",
+                "description": "Buffering end time in seconds"
+              },
+              "duration": {
+                "type": "number",
+                "description": "Buffering duration in seconds"
+              }
+            }
+          },
+          "description": "List of buffering events during playback"
+        },
+        "totalBufferingTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total time spent buffering in seconds"
+        },
+        "startupTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Time from play request to first frame in milliseconds"
+        },
+        "currentBitrate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Current bitrate in bits per second"
+        },
+        "currentResolution": {
+          "type": "string",
+          "description": "Current video resolution (e.g., '1920x1080')"
+        },
+        "bitrateSwitches": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Number of bitrate switches during playback"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "timestamp": {
+                "type": "number",
+                "description": "Error timestamp in seconds"
+              }
+            }
+          },
+          "description": "List of playback errors"
+        },
+        "errorCount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total number of errors"
+        },
+        "framesDropped": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Number of frames dropped"
+        },
+        "framesRendered": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Number of frames rendered"
+        },
+        "networkSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Estimated network speed in bits per second"
+        },
+        "playbackQuality": {
+          "type": "string",
+          "enum": ["excellent", "good", "fair", "poor"],
+          "description": "Overall playback quality assessment"
+        }
+      }
+    }
+  }
+}
