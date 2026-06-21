@@ -42,6 +42,8 @@ Under **OAuth & Permissions → Scopes → Bot Token Scopes**, add:
 1. **OAuth & Permissions** → **Install to Workspace** → Allow.
 2. Copy the **Bot User OAuth Token** (`xoxb-…`). This is `SLACK_BOT_TOKEN`.
 
+> **Which workspace?** The pipeline log line `Slack bot '…' in workspace '…'` comes from Slack’s `auth.test` API — it shows whichever workspace the **bot token** was issued for. There is no workspace name setting in this repo. To use a different workspace, create/reinstall the Slack app in that workspace, copy the new `xoxb-…` token, and update **`SLACK_BOT_TOKEN`** in GitHub Secrets. The channel ID (`SLACK_CHANNEL_ID`) must belong to that same workspace.
+
 ## 2. Create a channel and invite the bot
 
 1. Create a channel (e.g. `#streamapp-ci`).
@@ -155,3 +157,4 @@ After fixing `SLACK_CHANNEL_ID`, re-run the workflow. The notify step now **fail
 - Composite actions: [`.github/actions/README.md`](../.github/actions/README.md)
 - Payload scripts: [`.github/scripts/`](../.github/scripts/)
 - Firebase deploy setup: [FIREBASE-SETUP.md](FIREBASE-SETUP.md)
+- Allure report links (404 fix): [GITHUB-PAGES-SETUP.md](GITHUB-PAGES-SETUP.md)

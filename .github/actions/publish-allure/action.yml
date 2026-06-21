@@ -171,13 +171,16 @@ runs:
 
           cd "$WORK_DIR"
 
+          # Required at site root so Jekyll does not strip Allure asset paths.
+          touch .nojekyll
+
           # Copy the freshly-generated report into the target sub-folder.
           # Wipe ONLY this stage's sub-folder (preserves siblings written by other workflows).
           mkdir -p "$TARGET_FOLDER"
           rm -rf "${TARGET_FOLDER:?}/"* "${TARGET_FOLDER:?}/".[!.]* 2>/dev/null || true
           cp -R "$SRC_ABS/." "$TARGET_FOLDER/"
 
-          git add "$TARGET_FOLDER"
+          git add "$TARGET_FOLDER" .nojekyll
           if git diff --cached --quiet; then
             echo "ℹ️  No changes to push (report already up-to-date)"
             SUCCESS=1

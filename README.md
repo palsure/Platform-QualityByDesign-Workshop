@@ -9,6 +9,7 @@ A hands-on workshop repo: reusable GitHub Actions workflow templates, security-b
 | **Workshop guide** | [`docs/WORKSHOP-GUIDE.md`](docs/WORKSHOP-GUIDE.md) |
 | **Slack setup** | [`docs/SLACK-SETUP.md`](docs/SLACK-SETUP.md) |
 | **Firebase deploy setup** | [`docs/FIREBASE-SETUP.md`](docs/FIREBASE-SETUP.md) |
+| **Allure report links (GitHub Pages)** | [`docs/GITHUB-PAGES-SETUP.md`](docs/GITHUB-PAGES-SETUP.md) |
 | **Gate chain** | `unit → contract → integration → ephemeral env → smoke → perf smoke → promote` (+ DevSecOps in parallel) |
 | **Orchestrator** | [`.github/workflows/quality-by-design.yaml`](.github/workflows/quality-by-design.yaml) |
 | **CFP submission** | [`docs/SUBMISSION.md`](docs/SUBMISSION.md) |
