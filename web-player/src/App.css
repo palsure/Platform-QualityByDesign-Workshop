@@ -680,7 +680,7 @@
   display:    block !important;
 }
 
-/* Hide the custom controls bar and QoE debug panel in the overlay —
+/* Hide the custom controls bar and debug probe panel in the overlay —
    native <video controls> provides better in-context playback controls  */
 .player-overlay .controls,
 .player-overlay .qoe-snapshot-pre,
@@ -845,25 +845,6 @@
 .detail-facts dd {
   font-size: .85rem;
   color: var(--text);
-}
-
-.detail-panel-qoe { border-color: rgba(0,180,216,.2); }
-
-.detail-qoe-hint {
-  font-size: .85rem;
-  color: rgba(255,255,255,.65);
-  line-height: 1.6;
-  margin-bottom: 1rem;
-}
-
-.detail-qoe-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .5rem 1rem;
-  border: 1px solid;
-  border-radius: 8px;
-  font-size: .85rem;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */

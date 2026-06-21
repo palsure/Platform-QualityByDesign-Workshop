@@ -1,4 +1,4 @@
-# Stream-QoE-App-iOS
+# Streaming App — iOS
 #
 # Pipeline flow:
 #   0. notify-start     — Post "build started" to Slack; capture thread_ts + start_epoch.
@@ -30,13 +30,13 @@
 #   FIREBASE_APP_ID_IOS      — Firebase App ID for App Distribution
 #   FIREBASE_TESTERS         — Comma-separated list of tester emails
 
-name: Stream-QoE-App-iOS
+name: Streaming App — iOS
 
 on:
   pull_request:
     paths:
       - 'ios-player/**'
-      - '.github/workflows/stream-qoe-app-ios.yml'
+      - '.github/workflows/streaming-app-ios.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
@@ -45,7 +45,7 @@ on:
     branches: [main, develop]
     paths:
       - 'ios-player/**'
-      - '.github/workflows/stream-qoe-app-ios.yml'
+      - '.github/workflows/streaming-app-ios.yml'
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:

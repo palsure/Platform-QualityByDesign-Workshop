@@ -3,7 +3,7 @@
 > **PlatformCon 2026** · Theme 2: Platform Engineering in Practice  
 > **Embedding DevSecOps and Test Automation into CI/CD Pipeline**
 
-Self-contained demo repo for the PlatformCon workshop. Real QoE streaming sample apps (`backend-api`, `web-player`, `android-player`, `ios-player`) plus a **platform golden path** — reusable workflow templates, contract tests, DevSecOps defaults, ephemeral validation, and PR feedback.
+Self-contained demo repo for the PlatformCon workshop. A **streaming app** (`backend-api`, `web-player`, `android-player`, `ios-player`) plus a **platform golden path** — reusable workflow templates, contract tests, DevSecOps defaults, ephemeral validation, and PR feedback.
 
 ## Workshop pitch
 
@@ -56,7 +56,7 @@ platform/                  # repo root
 └── .github/workflows/
     ├── quality-by-design.yaml      ← QBD orchestrator
     ├── reusable-*.yaml             ← platform templates
-    └── stream-qoe-app-*.yml        ← per-platform QoE shipping pipelines
+    └── streaming-app-*.yml        ← per-platform shipping pipelines
 ```
 
 ## Learning outcomes

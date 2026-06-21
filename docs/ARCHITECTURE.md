@@ -101,11 +101,11 @@ All sample apps and the canonical pipeline live in this repo:
 | Reusable templates | `.github/workflows/reusable-*.yaml` |
 | DevSecOps + policy | `platform/` |
 | Ephemeral env (compose) | `docker-compose.yml` |
-| QoE per-platform pipelines | `.github/workflows/stream-qoe-app-*.yml` |
+| Shipping pipelines | `.github/workflows/streaming-app-*.yml` |
 | PR feedback | `platform/scripts/pr-summary.py` |
 | Perf threshold script | `platform/scripts/quality-gate.sh` |
 
-Gate orchestration patterns adapted from `.github/workflows/stream-qoe-app-api.yml`.
+Gate orchestration patterns adapted from `.github/workflows/streaming-app-api.yml`.
 
 ### What to keep in the critical path (what worked)
 - Secrets scanning and dependency checks (fast, high value)

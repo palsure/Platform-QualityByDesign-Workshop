@@ -45,26 +45,13 @@ describe('CATALOG', () => {
     );
   });
 
-  it('contains a "qoe-scenarios" row', async () => {
+  it('contains a "new-releases" row', async () => {
     await allure.feature('Video Catalog');
     await allure.story('CATALOG structure');
-    await allure.description('The QoE demo scenarios row must be present for the workshop demo to function.');
-    await allure.step('find qoe-scenarios row', () =>
-      expect(CATALOG.find(r => r.id === 'qoe-scenarios')).toBeDefined(),
+    await allure.description('The new-releases row provides browse content for the home page.');
+    await allure.step('find new-releases row', () =>
+      expect(CATALOG.find(r => r.id === 'new-releases')).toBeDefined(),
     );
-  });
-
-  it('the qoe-scenarios row covers all 5 DemoScenarioIds', async () => {
-    await allure.feature('Video Catalog');
-    await allure.story('QoE Demo Coverage');
-    await allure.description('Every DemoScenarioId must be represented by at least one video in the qoe-scenarios row, ensuring no scenario is left without a test card.');
-    const qoeRow = CATALOG.find(r => r.id === 'qoe-scenarios')!;
-    const scenariosUsed = qoeRow.videos.map(v => v.scenario);
-    for (const id of DEMO_SCENARIO_IDS) {
-      await allure.step(`scenario "${id}" is in qoe-scenarios`, () =>
-        expect(scenariosUsed).toContain(id),
-      );
-    }
   });
 });
 
@@ -123,7 +110,7 @@ describe('ALL_VIDEOS', () => {
   it('movies, shows, and live tabs each have content', async () => {
     await allure.feature('Video Catalog');
     await allure.story('Browse tabs');
-    const movies = ALL_VIDEOS.filter(v => v.contentType === 'movie' && v.genre !== 'QoE Demo');
+    const movies = ALL_VIDEOS.filter(v => v.contentType === 'movie');
     const shows = ALL_VIDEOS.filter(v => v.contentType === 'show');
     const live = ALL_VIDEOS.filter(v => v.contentType === 'live');
     await allure.step('movies tab', () => expect(movies.length).toBeGreaterThan(0));
@@ -157,7 +144,7 @@ describe('ALL_VIDEOS', () => {
   it('all scenario values are valid DemoScenarioIds', async () => {
     await allure.feature('Video Catalog');
     await allure.story('ALL_VIDEOS');
-    await allure.description('The scenario field is used to activate QoE fault injection; an unknown id would silently fall back to baseline.');
+    await allure.description('The scenario field is used for optional playback fault injection in CI tests.');
     for (const video of ALL_VIDEOS) {
       await allure.step(`"${video.id}" scenario is known`, () =>
         expect(DEMO_SCENARIO_IDS as readonly string[]).toContain(video.scenario),
@@ -241,7 +228,7 @@ describe('HERO_VIDEO', () => {
   it('has a baseline scenario', async () => {
     await allure.feature('Video Catalog');
     await allure.story('HERO_VIDEO');
-    await allure.description('The hero video should not inject QoE faults — it must use the "baseline" scenario.');
+    await allure.description('The hero video should use the baseline scenario for normal playback.');
     await allure.step('scenario === "baseline"', () =>
       expect(HERO_VIDEO.scenario).toBe('baseline'),
     );

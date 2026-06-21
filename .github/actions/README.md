@@ -1,6 +1,6 @@
 # Reusable Composite Actions
 
-Five composite GitHub Actions that every module pipeline calls. They exist so the per-platform workflows (`stream-qoe-app-api.yml`, `stream-qoe-app-web.yml`, `stream-qoe-app-android.yml`, `stream-qoe-app-ios.yml`) can stay short and identical in shape — all the Slack payload building, Allure publishing, and LambdaTest orchestration lives here exactly once.
+Five composite GitHub Actions that every module pipeline calls. They exist so the per-platform workflows (`streaming-app-api.yml`, `streaming-app-web.yml`, `streaming-app-android.yml`, `streaming-app-ios.yml`) can stay short and identical in shape — all the Slack payload building, Allure publishing, and LambdaTest orchestration lives here exactly once.
 
 The **Quality-by-Design** workshop also adds [`evaluate-jest-gate`](evaluate-jest-gate/) for web-player unit test gating.
 

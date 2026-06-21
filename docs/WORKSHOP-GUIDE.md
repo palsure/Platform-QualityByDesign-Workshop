@@ -8,7 +8,7 @@ A hands-on workshop on embedding DevSecOps and test automation into CI/CD pipeli
 
 Teams rarely lack tests or security — they lack **consistency**. One service has strong gates, the next has none, and the platform team ends up maintaining one-off pipelines instead of improving the platform.
 
-Participants turn DevSecOps and test automation into CI/CD defaults. Using this self-contained demo repo (QoE streaming sample apps), they wire up a standard gate chain, adopt reusable GitHub Actions workflow templates, and spin up ephemeral test environments.
+Participants turn DevSecOps and test automation into CI/CD defaults. Using this self-contained demo repo (streaming app sample apps), they wire up a standard gate chain, adopt reusable GitHub Actions workflow templates, and spin up ephemeral test environments.
 
 ## Learning outcomes
 
@@ -116,7 +116,7 @@ CI uses Docker Compose for speed; K8s scripts demonstrate the self-service envir
 
 ## Sample apps (demo vehicle)
 
-The workshop uses real streaming QoE sample apps — not a toy CRUD app:
+The workshop uses a real **streaming app** — not a toy CRUD app:
 
 | App | Role |
 |-----|------|
@@ -124,7 +124,7 @@ The workshop uses real streaming QoE sample apps — not a toy CRUD app:
 | `web-player` | React/Vite + Vitest + Playwright |
 | `android-player` / `ios-player` | Mobile players (separate per-platform pipelines) |
 
-See [README.md](../README.md) for the full QoE architecture.
+See [README.md](../README.md) for the full app architecture.
 
 ## Further reading
 

@@ -1,6 +1,6 @@
 # Web Player
 
-React / TypeScript HLS video player that collects QoE metrics and streams them to the backend API every 5 seconds.
+React / TypeScript HLS streaming app (StreamApp) with catalog browsing, video playback, and Playwright E2E tests.
 
 ## Tech stack
 
@@ -16,29 +16,25 @@ React / TypeScript HLS video player that collects QoE metrics and streams them t
 
 ## Module architecture
 
-The player is intentionally simple: a `VideoPlayer` component wraps `<video>` and HLS.js, a `QoECollector` listens to playback events and ticks every 5s, and an axios-based service POSTs the payload to the backend. Types are imported directly from the canonical schema in `ops/shared/schema/qoe-metrics.types.ts` so the web client and the API stay in lockstep.
+The player is intentionally simple: catalog pages (`BrowsePage`, `DetailPage`) feed a `VideoPlayer` component that wraps `<video>` and HLS.js. A hidden E2E bridge (`window.__QOE_DEMO__`) exposes playback state to Playwright; optional fault injection via `?scenario=` supports CI gate tests.
 
 ```mermaid
 flowchart LR
   User((User))
   subgraph App["web-player/src"]
     direction TB
-    Page["pages/<br/>HomePage · DetailPage"]
+    Page["pages/<br/>BrowsePage · DetailPage"]
     VP["components/VideoPlayer.tsx<br/>HLS.js + &lt;video&gt; element"]
-    Coll["services/qoeCollector.ts<br/>buffering + bitrate +<br/>quality score, tick every 5s"]
+    Bridge["demo/qoeDemoBridge.ts<br/>E2E snapshot + controls"]
     NR["services/newrelic.ts<br/>Browser RUM bootstrap"]
-    HTTP["axios → POST /api/v1/metrics"]
   end
-  Schema["ops/shared/schema/<br/>qoe-metrics.types.ts"]
   API[["Backend API<br/>:8080"]]
   NRC[["New Relic"]]
 
   User --> Page --> VP
-  VP -- "playback events" --> Coll
-  Coll -- "QoEMetricPayload" --> HTTP --> API
-  Schema -. "TS types" .-> Coll
-  Schema -. "TS types" .-> HTTP
+  VP --> Bridge
   VP --> NR --> NRC
+  Page --> API
 ```
 
 ## Prerequisites
@@ -118,9 +114,9 @@ npm run build     # production bundle in dist/
 ```
 web-player/
 ├── src/
-│   ├── components/      # VideoPlayer, MetricsOverlay, …
-│   ├── pages/           # HomePage, DetailPage
-│   ├── services/        # qoeCollector, newrelic, api client
+│   ├── components/      # VideoPlayer, Navbar, …
+│   ├── pages/           # BrowsePage, DetailPage
+│   ├── services/        # newrelic, metrics collector (internal)
 │   └── App.tsx, main.tsx
 ├── e2e/                 # Playwright specs (BAT + Smoke tagged)
 ├── playwright.config.ts # chromium + throttle profiles, workers=4
@@ -132,7 +128,7 @@ web-player/
 ## Docker
 
 ```bash
-docker build -t qoe-web-player -f web-player/Dockerfile .
+docker build -t streamapp-web-player -f web-player/Dockerfile .
 # Or just bring up the full stack:
 docker compose up -d
 ```

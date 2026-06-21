@@ -10,7 +10,7 @@ interface VideoPlayerProps {
   scenario: DemoScenarioId;
   /** Used by Playwright to avoid clicking Play. */
   autoPlayForE2E?: boolean;
-  /** Show QoE probe snapshot panel (always shown when VITE_QOE_SILENT is unset in dev/CI). */
+  /** Show debug probe snapshot panel (off by default). */
   showQoePanel?: boolean;
 }
 
@@ -360,8 +360,8 @@ export function VideoPlayer({ videoUrl, videoId, scenario, autoPlayForE2E, showQ
         {snapshotJson()}
       </pre>
       {showQoePanel && (
-        <section className="qoe-probe-panel" aria-label="QoE probe snapshot for CI">
-          <h4>QoE probe snapshot (window.__QOE_DEMO__)</h4>
+        <section className="qoe-probe-panel" aria-label="Player probe snapshot for CI">
+          <h4>Player probe snapshot (window.__QOE_DEMO__)</h4>
         </section>
       )}
     </div>

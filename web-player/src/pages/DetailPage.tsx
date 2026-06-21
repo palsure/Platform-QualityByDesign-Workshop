@@ -13,16 +13,6 @@ export function DetailPage({ video, onBack, autoPlay = false }: DetailPageProps)
   const [playing, setPlaying] = useState(autoPlay);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const scenarioBadgeMap: Record<string, string> = {
-    baseline:                 'Baseline',
-    startup_delay:            'Startup Delay',
-    black_screen_pulse:       'Black Screen',
-    forced_mid_play_rebuffer: 'Rebuffering',
-    bitrate_step_down:        'Bitrate Step-Down',
-  };
-
-  const isQoeDemo = video.genre === 'QoE Demo';
-
   // ── Fullscreen helpers ──────────────────────────────────────────────────────
 
   const openFullscreen = () => {
@@ -91,12 +81,6 @@ export function DetailPage({ video, onBack, autoPlay = false }: DetailPageProps)
               </span>
             )}
             <span className="detail-genre-badge">{video.genre}</span>
-            {isQoeDemo && (
-              <span className="detail-scenario-badge"
-                    style={{ borderColor: video.accentColor, color: video.accentColor }}>
-                {scenarioBadgeMap[video.scenario] ?? video.scenario}
-              </span>
-            )}
             {video.subGenres.map(g => (
               <span key={g} className="detail-sub-badge">{g}</span>
             ))}
@@ -146,32 +130,9 @@ export function DetailPage({ video, onBack, autoPlay = false }: DetailPageProps)
             <div><dt>Genre</dt>    <dd>{[video.genre, ...video.subGenres].join(', ')}</dd></div>
             <div><dt>Year</dt>     <dd>{video.year}</dd></div>
             <div><dt>Rating</dt>   <dd>{video.rating}</dd></div>
-            <div><dt>Duration</dt> <dd>{video.durationLabel}</dd></div>
-            {isQoeDemo && (
-              <div>
-                <dt>QoE Scenario</dt>
-                <dd style={{ color: video.accentColor }}>
-                  {scenarioBadgeMap[video.scenario] ?? video.scenario}
-                </dd>
-              </div>
-            )}
+            <div><dt>Duration</dt> <dd>{video.seriesLabel ?? video.durationLabel}</dd></div>
           </dl>
         </div>
-
-        {isQoeDemo && (
-          <div className="detail-panel detail-panel-qoe">
-            <h3>QoE Scenario Details</h3>
-            <p className="detail-qoe-hint">
-              This title demonstrates a specific streaming quality fault.
-              Press <strong>Play</strong> to activate the scenario.
-            </p>
-            <div className="detail-qoe-badge"
-                 style={{ background: video.accentColor + '22', borderColor: video.accentColor }}>
-              <span style={{ color: video.accentColor }}>●</span>
-              &nbsp;Scenario: <strong>{scenarioBadgeMap[video.scenario]}</strong>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Fullscreen player overlay ────────────────────────────────────────

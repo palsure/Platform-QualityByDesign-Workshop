@@ -125,7 +125,7 @@ cd ios-player
 FIREBASE_APP_ID=<your-app-id> APPLE_TEAM_ID=<your-team-id> ./deploy-firebase.sh
 ```
 
-## CI pipeline (stream-qoe-app-ios.yml)
+## CI pipeline (streaming-app-ios.yml)
 
 The shape mirrors the Android pipeline — soft-gated BAT, two-tier Firebase distribution.
 

@@ -4,7 +4,7 @@
 # ── Required repo secrets (Settings → Secrets and variables → Actions → New repository secret) ──
 #   NEW_RELIC_USER_API_KEY   User API key (NRAK-…). https://one.newrelic.com/api-keys → "User"
 #   NEW_RELIC_ACCOUNT_ID     Numeric account ID (e.g. 7996933).
-#   NEW_RELIC_APM_GUID       APM entity GUID for "Stream QoE API" (used by the deployment
+#   NEW_RELIC_APM_GUID       APM entity GUID for "StreamApp API" (used by the deployment
 #                            marker). Find it in NR → APM & services → entity → "Copy entity GUID".
 #                            Optional — the deployment-marker job is skipped when blank.
 #
@@ -14,21 +14,21 @@
 # ── Triggers ────────────────────────────────────────────────────────────────────
 #   PR touching ops/monitoring/newrelic/**          → validate-config
 #   Push to main touching ops/monitoring/newrelic/**→ validate-config + deploy-dashboard / deploy-alerts
-#   workflow_call (from stream-qoe-app-release.yml on tag/release) → record-deployment
+#   workflow_call (from streaming-app-release.yml on tag/release) → record-deployment
 #   workflow_dispatch                                → run any of the jobs ad-hoc
 
-name: Stream-QoE-App-NewRelic
+name: Streaming App — New Relic
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'ops/monitoring/newrelic/**'
-      - '.github/workflows/stream-qoe-app-newrelic.yml'
+      - '.github/workflows/streaming-app-newrelic.yml'
   pull_request:
     paths:
       - 'ops/monitoring/newrelic/**'
-      - '.github/workflows/stream-qoe-app-newrelic.yml'
+      - '.github/workflows/streaming-app-newrelic.yml'
   workflow_dispatch:
     inputs:
       task:
@@ -37,7 +37,7 @@ on:
         type: choice
         options: [ validate, dashboard, alerts, all ]
         default: all
-  # Allow stream-qoe-app-release.yml to call us after a release succeeds.
+  # Allow streaming-app-release.yml to call us after a release succeeds.
   workflow_call:
     inputs:
       version:

@@ -11,7 +11,7 @@ Sample apps and the full pipeline live in this repo. Teams call the platform-man
 | Reusable templates | [`.github/workflows/reusable-*.yaml`](../.github/workflows/) |
 | DevSecOps + policy | [`platform/`](../platform/) |
 | Local stack | [`docker-compose.yml`](../docker-compose.yml) |
-| Per-platform QoE pipelines | [`.github/workflows/stream-qoe-app-*.yml`](../.github/workflows/) |
+| Per-platform shipping pipelines | [`.github/workflows/streaming-app-*.yml`](../.github/workflows/) |
 
 ## Gate chain
 
@@ -58,4 +58,4 @@ jobs:
 
 Set **branch protection** required checks to the QBD orchestrator jobs (`DevSecOps Defaults`, `Backend Test Gates`, `Web Player Unit Tests`, `Ephemeral Env Validation`, `Promotion Gate`).
 
-Mobile apps (Android/iOS) continue to use the existing `stream-qoe-app-android.yml` and `stream-qoe-app-ios.yml` pipelines for shipping and device E2E.
+Mobile apps (Android/iOS) continue to use the existing `streaming-app-android.yml` and `streaming-app-ios.yml` pipelines for shipping and device E2E.

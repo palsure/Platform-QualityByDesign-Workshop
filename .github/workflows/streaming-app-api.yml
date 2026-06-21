@@ -1,4 +1,4 @@
-# Stream-QoE-App-API
+# Streaming App — API
 #
 # Pipeline flow:
 #   0. notify-start        — Post "build started" to Slack; capture thread_ts + start_epoch.
@@ -20,13 +20,13 @@
 #   SLACK_BOT_TOKEN   — Slack bot OAuth token
 #   SLACK_CHANNEL_ID  — Target channel ID
 
-name: Stream-QoE-App-API
+name: Streaming App — API
 
 on:
   pull_request:
     paths:
       - 'backend-api/**'
-      - '.github/workflows/stream-qoe-app-api.yml'
+      - '.github/workflows/streaming-app-api.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
@@ -35,7 +35,7 @@ on:
     branches: [main, develop]
     paths:
       - 'backend-api/**'
-      - '.github/workflows/stream-qoe-app-api.yml'
+      - '.github/workflows/streaming-app-api.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'

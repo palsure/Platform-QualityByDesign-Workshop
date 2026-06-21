@@ -1,6 +1,6 @@
 # Backend API
 
-Java 21 / Spring Boot 3 REST API that ingests QoE metrics from every player client, runs validation rules, and exposes a pipeline acceptance gate.
+Java 21 / Spring Boot 3 REST API for the streaming app — catalog, videos, and pipeline acceptance gate.
 
 ## Tech stack
 

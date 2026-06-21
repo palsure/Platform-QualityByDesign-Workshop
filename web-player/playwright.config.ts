@@ -116,9 +116,9 @@ function bsCaps(extra: Record<string, unknown> = {}): Record<string, string> | u
     'browser_version':   'latest',
     'os':                'Windows',
     'os_version':        '11',
-    'name':              'QoE Web Player E2E',
-    'build':             `DevOpsDays-QoE-${BS_BUILD_NAME}`,
-    'project':           'DevOpsDays QoE',
+    'name':              'StreamApp Web Player E2E',
+    'build':             `StreamApp-${BS_BUILD_NAME}`,
+    'project':           'StreamApp',
     'browserstack.networkLogs':  'true',
     'browserstack.console':      'warnings',
     ...Object.fromEntries(
@@ -160,7 +160,7 @@ export default defineConfig({
       environmentInfo: {
         Framework:   'Playwright',
         Language:    'TypeScript',
-        App:         'QoE Web Player',
+        App:         'StreamApp Web Player',
         Stage:       STAGE.toUpperCase(),
         BaseURL:     BASE_URL,
         RunMode:     RUN_MODE,

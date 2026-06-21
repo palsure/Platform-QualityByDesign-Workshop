@@ -67,7 +67,7 @@ def main() -> int:
         outcome, icon = "Skipped — no changes detected", "\u26AA"  # ⚪
     else:
         outcome, icon = "Failed",                         "\u274c"  # ❌
-    header  = f"[{module}] Stream-QoE-App  |  Build #{run_number}  \u2014  {icon} {outcome}"
+    header  = f"[{module}] Streaming App  |  Build #{run_number}  \u2014  {icon} {outcome}"
 
     payload = json.dumps({
         "channel": channel,

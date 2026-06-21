@@ -2,7 +2,7 @@
 
 > **PlatformCon 2026** · Theme 2: Platform Engineering in Practice
 
-A hands-on workshop repo: reusable GitHub Actions workflow templates, security-by-default checks, ephemeral test environments, and enforceable quality gates — demonstrated on real **QoE streaming sample apps** (web, iOS, Android, API).
+A hands-on workshop repo: reusable GitHub Actions workflow templates, security-by-default checks, ephemeral test environments, and enforceable quality gates — demonstrated on a **streaming app** (web, iOS, Android, API).
 
 | | |
 |---|---|
@@ -31,53 +31,33 @@ See [`QUICKSTART.md`](QUICKSTART.md) and [`docs/WORKSHOP-GUIDE.md`](docs/WORKSHO
 
 ---
 
-## Sample apps — QoE streaming demo
+## Sample apps — streaming app demo
 
-Cross-platform Quality of Experience (QoE) validation for streaming video: shared backend, metrics schema, multi-stage tests, and per-platform CI/CD pipelines with Slack notifications and Allure reports.
+Cross-platform streaming video app with a shared backend, catalog API, multi-stage tests, and per-platform CI/CD pipelines.
 
 ## Architecture
 
-The four player platforms share a single backend, a single metrics schema, and a single set of CI/CD primitives. Every player collects the same payload shape and posts it to the API every 5 seconds; the API stores it, validates it against thresholds, and exposes a pipeline acceptance gate.
+The player clients share a single backend API and a common CI/CD pattern for build, test, and release.
 
 ```mermaid
 flowchart LR
-  subgraph Players["📱 Player clients"]
+  subgraph Players["Player clients"]
     direction TB
     Web["Web Player<br/>React + HLS.js"]
     iOS["iOS Player<br/>Swift + AVPlayer"]
     Android["Android Player<br/>Kotlin + ExoPlayer"]
   end
 
-  subgraph Backend["🛰  Backend (Java / Spring Boot)"]
+  subgraph Backend["Backend (Java / Spring Boot)"]
     direction TB
-    API["REST API<br/>POST /api/v1/metrics<br/>POST /api/v1/validations<br/>POST /api/v1/pipeline-runs"]
-    Validation["Validation engine<br/>thresholds &amp; quality score"]
-    Gate["Acceptance gate"]
-    DB[("PostgreSQL 15<br/>Flyway migrations")]
-    API --> Validation --> Gate
+    API["REST API<br/>catalog · videos · pipeline-runs"]
+    DB[("PostgreSQL 15")]
     API --> DB
-    Validation --> DB
   end
 
-  subgraph Schema["📐 Shared contract"]
-    SchemaJSON["ops/shared/schema/<br/>qoe-metrics.schema.json<br/>qoe-metrics.types.ts"]
-  end
-
-  subgraph Obs["📊 Observability"]
-    NR["New Relic<br/>RUM + APM"]
-  end
-
-  Web -- "QoE payload<br/>every 5s" --> API
-  iOS -- "QoE payload<br/>every 5s" --> API
-  Android -- "QoE payload<br/>every 5s" --> API
-
-  Web -- "browser RUM" --> NR
-  API -- "APM" --> NR
-
-  SchemaJSON -. "validates payloads" .-> API
-  SchemaJSON -. "shapes types" .-> Web
-  SchemaJSON -. "shapes types" .-> iOS
-  SchemaJSON -. "shapes types" .-> Android
+  Web --> API
+  iOS --> API
+  Android --> API
 ```
 
 ## CI/CD pipeline shape
@@ -146,7 +126,7 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 | [`web-player/`](web-player/README.md) | React + TypeScript + HLS.js player | Setup, E2E tests, Allure reports |
 | [`ios-player/`](ios-player/README.md) | Swift Package library + SwiftUI demo app | Library usage, Xcode build, Firebase deploy |
 | [`android-player/`](android-player/README.md) | Kotlin / ExoPlayer Android app | Android Studio setup, APK build |
-| [`qoe-automation-tests/`](qoe-automation-tests/README.md) | Java / TestNG cross-platform automation | API, web, mobile, validation tests |
+| [`qoe-automation-tests/`](qoe-automation-tests/README.md) | Java / TestNG cross-platform automation | API, web, and mobile tests |
 | [`ops/`](ops/README.md) | Infrastructure, monitoring, shared schema | nginx, FFmpeg, New Relic, JSON schema |
 
 ## Project structure
@@ -160,7 +140,7 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 ├── ops/
 │   ├── infrastructure/          # nginx config, FFmpeg HLS transcoder, tc network sim
 │   ├── monitoring/              # New Relic dashboards, alerts, NRQL
-│   └── shared/schema/           # Canonical qoe-metrics.schema.json + TS types
+│   └── shared/schema/           # Shared JSON schema + TS types
 ├── platform/                    # QBD scripts, policy, smoke/k6 tests
 ├── docs/                        # PlatformCon workshop docs
 ├── presentations/               # DevOpsDays slide materials (reference)
@@ -210,16 +190,14 @@ All workflows live in [`.github/workflows/`](.github/workflows/).
 
 | Workflow | Trigger | Module |
 |---|---|---|
-| `stream-qoe-app-api.yml` | push / PR on `backend-api/**` | Backend API |
-| `stream-qoe-app-web.yml` | push / PR on `web-player/**` | Web Player |
-| `stream-qoe-app-android.yml` | push / PR on `android-player/**` | Android Player |
-| `stream-qoe-app-ios.yml` | push / PR on `ios-player/**` | iOS Player |
-| `stream-qoe-app-validation.yml` | pull request | Lightweight matrix across modules |
-| `stream-qoe-app-pr-e2e.yml` | pull request | Web + API (Docker stack + Playwright gate) |
-| `stream-qoe-app-newrelic.yml` | push / PR on monitoring config | New Relic dashboards / alerts |
-| `stream-qoe-app-release.yml` | manual | All modules — acceptance + release |
-| `shared-notify-build-started.yml` | `workflow_call` | Reusable "build started" Slack notify |
 | **`quality-by-design.yaml`** | push / PR on `backend-api/**`, `web-player/**`, `platform/**` | **PlatformCon QBD workshop** — full gate chain + DevSecOps |
+| `streaming-app-api.yml` | push / PR on `backend-api/**` | Backend API |
+| `streaming-app-web.yml` | push / PR on `web-player/**` | Web Player |
+| `streaming-app-android.yml` | push / PR on `android-player/**` | Android Player |
+| `streaming-app-ios.yml` | push / PR on `ios-player/**` | iOS Player |
+| `streaming-app-newrelic.yml` | push / PR on monitoring config | New Relic dashboards / alerts |
+| `streaming-app-release.yml` | manual | All modules — acceptance + release |
+| `shared-notify-build-started.yml` | `workflow_call` | Reusable "build started" Slack notify |
 | `reusable-devsecops.yaml` | `workflow_call` | Gitleaks · npm audit · SBOM · Trivy · Conftest |
 | `reusable-test-gates.yaml` | `workflow_call` | unit → contract → integration (BAT) |
 | `reusable-ephemeral-validation.yaml` | `workflow_call` | Docker Compose stack + smoke + k6 perf smoke |
@@ -259,4 +237,4 @@ Pipeline hardening:
 
 ## License
 
-Educational use — PlatformCon 2026 Quality by Design workshop and DevOpsDays Raleigh 2026 QoE demo.
+Educational use — PlatformCon 2026 Quality by Design workshop.

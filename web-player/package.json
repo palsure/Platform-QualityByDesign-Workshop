@@ -1,7 +1,7 @@
 {
   "name": "qoe-web-player",
   "version": "1.0.0",
-  "description": "Web video player with QoE metrics collection",
+  "description": "StreamApp web video player",
   "private": true,
   "scripts": {
     "dev": "vite",

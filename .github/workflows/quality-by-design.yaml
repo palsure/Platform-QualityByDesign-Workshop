@@ -1,6 +1,6 @@
 name: Quality by Design
 
-# PlatformCon workshop pipeline using QoE sample apps:
+# PlatformCon workshop pipeline using the streaming app sample apps:
 #   backend-api + web-player (+ existing android/ios per-platform pipelines)
 #
 # Gate chain:

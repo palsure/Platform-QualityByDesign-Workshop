@@ -38,26 +38,6 @@ export const CATALOG_IMAGES: Record<string, { poster: string; banner: string }> 
     poster: unsplash('photo-1559827260-dc66d52bef19', 480, 270),
     banner: unsplash('photo-1559827260-dc66d52bef19', 1920, 1080),
   },
-  'qoe-baseline': {
-    poster: unsplash('photo-1611162617474-5b21e879e113', 480, 270),
-    banner: unsplash('photo-1611162617474-5b21e879e113', 1920, 1080),
-  },
-  'qoe-startup-delay': {
-    poster: unsplash('photo-1504384308090-c894fdcc538d', 480, 270),
-    banner: unsplash('photo-1504384308090-c894fdcc538d', 1920, 1080),
-  },
-  'qoe-blackout': {
-    poster: unsplash('photo-1518770660439-4636190af475', 480, 270),
-    banner: unsplash('photo-1518770660439-4636190af475', 1920, 1080),
-  },
-  'qoe-rebuffer': {
-    poster: unsplash('photo-1551288049-bebda4e38f71', 480, 270),
-    banner: unsplash('photo-1551288049-bebda4e38f71', 1920, 1080),
-  },
-  'qoe-bitrate': {
-    poster: unsplash('photo-1558494949-ef010cbdcc31', 480, 270),
-    banner: unsplash('photo-1558494949-ef010cbdcc31', 1920, 1080),
-  },
   'amber-coast': {
     poster: unsplash('photo-1507525428034-b723cf961d3e', 480, 270),
     banner: unsplash('photo-1507525428034-b723cf961d3e', 1920, 1080),

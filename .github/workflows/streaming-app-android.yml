@@ -1,4 +1,4 @@
-# Stream-QoE-App-Android
+# Streaming App — Android
 #
 # Pipeline flow — internal release goes out as soon as the build is green
 # (Unit gate + Lint), BAT validates the artifact ALREADY on Firebase, and
@@ -72,13 +72,13 @@
 #   LT_DEVICE_ANDROID     — Device name (default "Pixel 6 Pro-13")
 #   LT_REGION             — LT region: us | eu | in (default us)
 
-name: Stream-QoE-App-Android
+name: Streaming App — Android
 
 on:
   pull_request:
     paths:
       - 'android-player/**'
-      - '.github/workflows/stream-qoe-app-android.yml'
+      - '.github/workflows/streaming-app-android.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
@@ -87,7 +87,7 @@ on:
     branches: [main, develop]
     paths:
       - 'android-player/**'
-      - '.github/workflows/stream-qoe-app-android.yml'
+      - '.github/workflows/streaming-app-android.yml'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:

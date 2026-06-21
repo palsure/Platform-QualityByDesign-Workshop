@@ -75,7 +75,7 @@ async function waitForPlayhead(
 test.describe('Player Controls (pause / play / seek)', () => {
 
   test.beforeEach(async ({ page }) => {
-    // UI navigation: home → "Crystal Clear" tile → detail page → click Play CTA.
+    // UI navigation: home → featured tile → detail page → click Play CTA.
     // The user-gesture click satisfies the headless browser autoplay policy so
     // the video reliably begins decoding (URL+autoplay query params do not).
     await page.goto('/');
@@ -84,7 +84,7 @@ test.describe('Player Controls (pause / play / seek)', () => {
     await allure.parameter('tested_url', testedUrl);
     await allure.link(testedUrl, 'Tested App URL');
 
-    await selectVideoAndPlay(page, 'Play Crystal Clear');
+    await selectVideoAndPlay(page, 'Play Cosmic Journey');
     await waitForFirstFrame(page);
   });
 
@@ -95,7 +95,7 @@ test.describe('Player Controls (pause / play / seek)', () => {
     await allure.story('Pause');
     await allure.severity('critical');
     await allure.description(`
-Verifies that calling pause() via the QoE bridge halts playback.
+Verifies that calling pause() via the player bridge halts playback.
 
 **Steps:**
 1. Autoplay baseline stream, wait for first frame.
@@ -247,7 +247,7 @@ test.describe('ABR & Bitrate (HLS.js level management)', () => {
     await allure.parameter('tested_url', testedUrl);
     await allure.link(testedUrl, 'Tested App URL');
 
-    await selectVideoAndPlay(page, 'Play Crystal Clear');
+    await selectVideoAndPlay(page, 'Play Cosmic Journey');
     await waitForManifest(page);
   });
 

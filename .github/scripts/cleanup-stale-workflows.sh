@@ -2,7 +2,7 @@
 # cleanup-stale-workflows.sh
 #
 # After renaming workflow files (e.g. qoe-android-tests.yml ->
-# stream-qoe-app-android.yml), the OLD workflow entry stays in
+# streaming-app-android.yml), the OLD workflow entry stays in
 # GitHub's Actions sidebar for as long as it still has run history.
 # That's why the UI shows two of every workflow after a rename.
 #

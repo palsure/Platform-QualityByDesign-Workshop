@@ -7,7 +7,7 @@
 #   SLACK_BOT_TOKEN   — bot OAuth token
 #   SLACK_CHANNEL_ID  — channel ID (e.g. C012AB3CD)
 
-name: Stream-QoE-App-Release
+name: Streaming App — Release
 
 # Run manually only — individual module pipelines handle per-module CI on push/PR.
 # Use this workflow for a full cross-module acceptance sweep before a release.

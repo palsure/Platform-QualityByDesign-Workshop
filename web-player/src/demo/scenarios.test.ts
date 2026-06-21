@@ -42,7 +42,7 @@ describe('DEMO_SCENARIO_IDS', () => {
   it('contains exactly 5 scenario ids', async () => {
     await allure.feature('Demo Scenarios');
     await allure.story('DEMO_SCENARIO_IDS');
-    await allure.description('The catalogue must expose exactly 5 QoE demo scenarios.');
+    await allure.description('The catalogue must expose exactly 5 fault-injection scenario ids for CI tests.');
     await allure.step('length === 5', () => expect(DEMO_SCENARIO_IDS.length).toBe(5));
   });
 

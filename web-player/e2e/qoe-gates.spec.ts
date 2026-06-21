@@ -48,15 +48,9 @@ async function assertNoNetworkIssues(
 
 // ── Test suite ────────────────────────────────────────────────────────────────
 
-test.describe('QoE quality gates (workshop demos)', () => {
+test.describe('Playback quality gates', () => {
 
   test.beforeEach(async ({ page }) => {
-    // Start from the home page so every test captures the full navigation
-    // flow (home → carousel → detail → play) in the video recording.
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-
-    // Record which deployment is under test — visible in every Allure report.
     const testedUrl = page.url();
     await allure.parameter('tested_url', testedUrl);
     await allure.link(testedUrl, 'Tested App URL');
@@ -82,8 +76,7 @@ from transient network latency).
     await allure.tag('qoe', 'ttff', 'baseline');
     await allure.link('https://www.w3.org/TR/media-source/', 'MSE spec', 'reference');
 
-    // Home → QoE Demo Scenarios carousel → "Crystal Clear" tile → detail page → Play
-    await selectVideoAndPlay(page, 'Play Crystal Clear');
+    await selectVideoAndPlay(page, undefined, 'baseline');
 
     await allure.step('Wait for first frame', () => waitForFirstFrame(page));
 
@@ -120,8 +113,7 @@ in CI prevents regressions landing in production.
     await allure.label('testType', 'automated');
     await allure.tag('qoe', 'ttff', 'startup-delay');
 
-    // Home → QoE Demo Scenarios carousel → "The Delay" tile → detail page → Play
-    await selectVideoAndPlay(page, 'Play The Delay');
+    await selectVideoAndPlay(page, undefined, 'startup_delay');
 
     await allure.step('Wait for first frame (with injected delay)', () => waitForFirstFrame(page));
 
@@ -161,8 +153,7 @@ probe (or computer-vision CI check) can catch it. The test asserts that the
     await allure.label('testType', 'automated');
     await allure.tag('qoe', 'visual-fault', 'black-screen');
 
-    // Home → QoE Demo Scenarios carousel → "Blackout" tile → detail page → Play
-    await selectVideoAndPlay(page, 'Play Blackout');
+    await selectVideoAndPlay(page, undefined, 'black_screen_pulse');
 
     const overlay = page.getByTestId('visual-blackout-overlay');
 
@@ -199,8 +190,7 @@ and accumulate it in \`totalBufferingTime\`.
     await allure.label('testType', 'automated');
     await allure.tag('qoe', 'rebuffering', 'stall');
 
-    // Home → QoE Demo Scenarios carousel → "The Stall" tile → detail page → Play
-    await selectVideoAndPlay(page, 'Play The Stall');
+    await selectVideoAndPlay(page, undefined, 'forced_mid_play_rebuffer');
 
     await allure.step('Wait for first frame', () => waitForFirstFrame(page));
 
