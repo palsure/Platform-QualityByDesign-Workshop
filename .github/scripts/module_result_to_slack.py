@@ -22,7 +22,7 @@ import os
 import time
 from pathlib import Path
 
-
+from slack_utils import normalize_channel_id
 def result_icon(result: str) -> str:
     return {
         "success":     "✅",
@@ -110,7 +110,7 @@ def main() -> int:
     footer_text = "    ".join(footer_parts)
 
     thread_ts  = os.environ.get("THREAD_TS", "")
-    channel_id = os.environ.get("SLACK_CHANNEL_ID", "")
+    channel_id = normalize_channel_id(os.environ.get("SLACK_CHANNEL_ID", ""))
 
     total_duration = os.environ.get("TOTAL_DURATION", "").strip()
     if total_duration:

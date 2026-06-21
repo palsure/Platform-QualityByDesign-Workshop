@@ -1,0 +1,23 @@
+# One-off diagnostic — run from Actions tab to validate Slack secrets.
+# Does not post messages; only checks auth.test + conversations.info.
+
+name: Slack Config Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Slack secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check SLACK_BOT_TOKEN and SLACK_CHANNEL_ID
+        env:
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: python3 .github/scripts/slack_validate_config.py

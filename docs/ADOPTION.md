@@ -59,3 +59,12 @@ jobs:
 Set **branch protection** required checks to the QBD orchestrator jobs (`DevSecOps Defaults`, `Backend Test Gates`, `Web Player Unit Tests`, `Ephemeral Env Validation`, `Promotion Gate`).
 
 Mobile apps (Android/iOS) continue to use the existing `streaming-app-android.yml` and `streaming-app-ios.yml` pipelines for shipping and device E2E.
+
+## Optional: Slack & Firebase
+
+Per-platform shipping pipelines support threaded Slack updates and Firebase deploys. Both are optional — missing secrets skip those steps without failing the rest of the pipeline.
+
+| Guide | Covers |
+|---|---|
+| [SLACK-SETUP.md](SLACK-SETUP.md) | Bot app, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID` |
+| [FIREBASE-SETUP.md](FIREBASE-SETUP.md) | Hosting (web), App Distribution (Android/iOS), CI tokens |

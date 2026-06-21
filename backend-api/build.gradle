@@ -143,23 +143,7 @@ tasks.register('unitTest', Test) {
             layout.buildDirectory.dir('allure-results/unit').get().asFile.absolutePath
 }
 
-tasks.register('contractTest', Test) {
-    group = 'verification'
-    description = 'API contract tests — stable response shapes (Quality-by-Design gate).'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    shouldRunAfter('unitTest')
-    useJUnitPlatform {
-        includeTags 'contract'
-    }
-    maxParallelForks = 1
-    jvmArgs '-Xmx768m', '-Xms256m'
-    systemProperty "allure.results.directory",
-            layout.buildDirectory.dir('allure-results/contract').get().asFile.absolutePath
-    configureDockerHost(it)
-}
-
-// Shared closure: configure Docker Desktop socket path for Testcontainers tasks.
+// Shared closure: configure Docker socket path for Testcontainers tasks.
 // Docker Desktop on Mac exposes the real daemon via docker.raw.sock.
 // The ~/.docker/run/docker.sock proxy returns HTTP 400 to non-CLI clients.
 def configureDockerHost = { Test task ->
@@ -179,6 +163,22 @@ def configureDockerHost = { Test task ->
         task.environment    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock"
         task.systemProperty "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock"
     }
+}
+
+tasks.register('contractTest', Test) {
+    group = 'verification'
+    description = 'API contract tests — stable response shapes (Quality-by-Design gate).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter('unitTest')
+    useJUnitPlatform {
+        includeTags 'contract'
+    }
+    maxParallelForks = 1
+    jvmArgs '-Xmx768m', '-Xms256m'
+    systemProperty "allure.results.directory",
+            layout.buildDirectory.dir('allure-results/contract').get().asFile.absolutePath
+    configureDockerHost(it)
 }
 
 tasks.register('e2eTest', Test) {

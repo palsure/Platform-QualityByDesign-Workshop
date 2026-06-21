@@ -7,6 +7,8 @@ A hands-on workshop repo: reusable GitHub Actions workflow templates, security-b
 | | |
 |---|---|
 | **Workshop guide** | [`docs/WORKSHOP-GUIDE.md`](docs/WORKSHOP-GUIDE.md) |
+| **Slack setup** | [`docs/SLACK-SETUP.md`](docs/SLACK-SETUP.md) |
+| **Firebase deploy setup** | [`docs/FIREBASE-SETUP.md`](docs/FIREBASE-SETUP.md) |
 | **Gate chain** | `unit → contract → integration → ephemeral env → smoke → perf smoke → promote` (+ DevSecOps in parallel) |
 | **Orchestrator** | [`.github/workflows/quality-by-design.yaml`](.github/workflows/quality-by-design.yaml) |
 | **CFP submission** | [`docs/SUBMISSION.md`](docs/SUBMISSION.md) |
@@ -201,6 +203,15 @@ All workflows live in [`.github/workflows/`](.github/workflows/).
 | `reusable-devsecops.yaml` | `workflow_call` | Gitleaks · npm audit · SBOM · Trivy · Conftest |
 | `reusable-test-gates.yaml` | `workflow_call` | unit → contract → integration (BAT) |
 | `reusable-ephemeral-validation.yaml` | `workflow_call` | Docker Compose stack + smoke + k6 perf smoke |
+
+### Slack & Firebase (optional CI integrations)
+
+Pipelines run without these — notifications and deploy steps are skipped when secrets are missing.
+
+| Setup guide | What it enables |
+|---|---|
+| [`docs/SLACK-SETUP.md`](docs/SLACK-SETUP.md) | Threaded build/stage/gate messages in a Slack channel |
+| [`docs/FIREBASE-SETUP.md`](docs/FIREBASE-SETUP.md) | Web Hosting preview → live; Android/iOS App Distribution |
 
 ### Quality by Design workshop (PlatformCon 2026)
 

@@ -50,9 +50,14 @@ jobs:
       SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Post "build started" to Slack
         id: post
         if: env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
+        env:
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
         run: |
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"
@@ -67,7 +72,7 @@ jobs:
             TRIGGERED_BY="${{ github.actor }} (${{ github.event_name }})"
           fi
 
-          PAYLOAD=$(python3 - <<EOF
+          python3 - <<EOF > /tmp/slack-build-started.json
           import json
           blocks = [
             {"type": "header", "text": {"type": "plain_text", "text": "[${{ inputs.module-name }}] Streaming App  |  Build #${{ github.run_number }}", "emoji": True}},
@@ -76,17 +81,12 @@ jobs:
             {"type": "context", "elements": [{"type": "mrkdwn", "text": "⏳ ${{ inputs.pipeline-steps }}. Results will follow in this thread."}]},
             {"type": "actions", "elements": [{"type": "button", "text": {"type": "plain_text", "text": "View Run", "emoji": True}, "url": "$RUN_URL", "style": "primary"}]}
           ]
-          print(json.dumps({"channel": "${{ env.SLACK_CHANNEL_ID }}", "unfurl_links": False, "unfurl_media": False, "blocks": blocks}))
+          print(json.dumps({"unfurl_links": False, "unfurl_media": False, "blocks": blocks}))
           EOF
-          )
 
-          RESPONSE=$(curl -sf -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer ${{ env.SLACK_BOT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-          echo "Slack response: $RESPONSE"
-          TS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ts',''))")
-          echo "thread_ts=$TS" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/slack_post_message.py \
+            --payload-file /tmp/slack-build-started.json \
+            --output-ts
 
       - name: Set empty thread_ts when Slack not configured
         if: env.SLACK_BOT_TOKEN == '' || env.SLACK_CHANNEL_ID == ''

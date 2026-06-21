@@ -131,3 +131,5 @@ See [README.md](../README.md) for the full app architecture.
 - [SUBMISSION.md](SUBMISSION.md) — PlatformCon CFP text
 - [ARCHITECTURE.md](ARCHITECTURE.md) — diagrams and lessons learned
 - [ADOPTION.md](ADOPTION.md) — how teams consume the platform pipeline
+- [SLACK-SETUP.md](SLACK-SETUP.md) — Slack bot + GitHub secrets for CI notifications
+- [FIREBASE-SETUP.md](FIREBASE-SETUP.md) — Firebase Hosting & App Distribution for web/mobile deploys

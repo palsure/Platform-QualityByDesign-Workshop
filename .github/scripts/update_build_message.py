@@ -26,12 +26,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.request
+from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from slack_utils import normalize_channel_id
 
 
 def main() -> int:
     token      = os.environ.get("SLACK_BOT_TOKEN", "")
-    channel    = os.environ.get("SLACK_CHANNEL_ID", "")
+    channel    = normalize_channel_id(os.environ.get("SLACK_CHANNEL_ID", ""))
     ts         = os.environ.get("THREAD_TS", "")
     verdict    = os.environ.get("BUILD_VERDICT", "failure")
     module     = os.environ.get("MODULE_NAME", "API")

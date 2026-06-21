@@ -67,7 +67,4 @@ runs:
         }
         pathlib.Path("gate-payload.json").write_text(json.dumps(payload))
         PYEOF
-        curl -sf -X POST https://slack.com/api/chat.postMessage \
-          -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d @gate-payload.json
+        python3 .github/scripts/slack_post_message.py --payload-file gate-payload.json

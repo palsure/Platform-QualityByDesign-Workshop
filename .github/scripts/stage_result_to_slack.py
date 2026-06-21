@@ -29,6 +29,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from slack_utils import normalize_channel_id
 
 PASS_THRESHOLD = 80.0
 
@@ -210,7 +211,7 @@ def main() -> int:
     footer_text = "    ".join(footer_parts)
 
     # ── Payload ───────────────────────────────────────────────────────────────
-    channel_id = os.environ.get("SLACK_CHANNEL_ID", "")
+    channel_id = normalize_channel_id(os.environ.get("SLACK_CHANNEL_ID", ""))
 
     # No tick/cross prefix — the colored circle in stats_text is sufficient signal
     header_text = (
