@@ -3,6 +3,9 @@
 # Reusable workflow — post a "build started" message to Slack and
 # capture the thread_ts + start_epoch for downstream jobs to use.
 #
+# Channel ID is passed as an input (not a secret) so it does not collide
+# with a repo secret named SLACK_CHANNEL_ID that may hold a stale value.
+#
 # Called by:  streaming-app-api.yml     (module-name: API)
 #             streaming-app-web.yml     (module-name: WEB)
 #             streaming-app-android.yml (module-name: ANDROID)
@@ -25,6 +28,11 @@ on:
         description: 'Environment label shown in the metadata line (STAGE / PROD)'
         type: string
         default: 'STAGE'
+      slack-channel-id:
+        description: 'Slack channel ID (C…). Resolved by caller from vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID'
+        type: string
+        required: false
+        default: ''
     outputs:
       thread_ts:
         description: 'Slack message timestamp — pass to every downstream job for threading'
@@ -34,8 +42,6 @@ on:
         value: ${{ jobs.notify.outputs.start_epoch }}
     secrets:
       SLACK_BOT_TOKEN:
-        required: false
-      SLACK_CHANNEL_ID:
         required: false
 
 jobs:
@@ -47,7 +53,7 @@ jobs:
       start_epoch: ${{ steps.epoch.outputs.start_epoch }}
     env:
       SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID || vars.SLACK_CHANNEL_ID }}
+      SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
 
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +63,7 @@ jobs:
         if: env.SLACK_BOT_TOKEN != '' && env.SLACK_CHANNEL_ID != ''
         env:
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID || vars.SLACK_CHANNEL_ID }}
+          SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
         run: |
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"

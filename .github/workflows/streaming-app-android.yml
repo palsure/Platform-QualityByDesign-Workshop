@@ -146,9 +146,9 @@ jobs:
         BAT Gate → Public Firebase → Smoke
         ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — JUnit4 + MockK; Allure adapter; inline quality gate (≥80%)

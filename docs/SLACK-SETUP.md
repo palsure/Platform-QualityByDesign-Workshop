@@ -34,6 +34,8 @@ Under **OAuth & Permissions → Scopes → Bot Token Scopes**, add:
 |---|---|
 | `chat:write` | Post messages as the bot |
 | `chat:write.public` | Post to public channels the bot hasn't joined yet (optional but convenient) |
+| `channels:read` | Validate channel ID before posting (used by Slack Config Check) |
+| `channels:join` | Auto-join public channels before the first post |
 
 ### Install the app
 
@@ -72,6 +74,8 @@ The channel ID is not sensitive. Prefer a **repository variable**; a secret also
 | `SLACK_CHANNEL_ID` | **Variables** (recommended) or **Secrets** | Channel ID (`C…`) — not `#channel-name` |
 
 Pipelines resolve: `vars.SLACK_CHANNEL_ID` first, then `secrets.SLACK_CHANNEL_ID`.
+
+> **Important:** If you previously saved a wrong value under **Secrets → `SLACK_CHANNEL_ID`**, delete that secret or update it to match your variable. An old secret (e.g. `#channel-name`) can override the correct variable and cause `channel_not_found`.
 
 ```text
 Settings → Secrets and variables → Actions → Variables → New repository variable
