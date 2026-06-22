@@ -99,7 +99,7 @@ Hosting serves `dist/` with SPA rewrites. No changes needed unless you change th
 
 ### Firebase Console
 
-1. Register the Android app (package name must match `android-player/app/build.gradle`).
+1. Register the Android app with package name **`com.platform.android`** (must match `applicationId` in `android-player/app/build.gradle.kts`).
 2. **App Distribution → Testers & Groups** → create groups:
    - `internal-testers` — canary builds (default)
    - `external-testers` or custom — public promotion (optional)

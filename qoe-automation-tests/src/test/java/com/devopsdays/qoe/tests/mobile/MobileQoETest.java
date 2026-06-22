@@ -62,7 +62,7 @@ public class MobileQoETest {
     private AndroidDriver driver;
     private WebDriverWait wait;
 
-    private static final String APP_PACKAGE  = "com.devopsdays.qoe";
+    private static final String APP_PACKAGE  = "com.platform.android";
     private static final String APP_ACTIVITY = "com.devopsdays.qoe.player.MainActivity";
     private static final String HLS_URL =
             "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
