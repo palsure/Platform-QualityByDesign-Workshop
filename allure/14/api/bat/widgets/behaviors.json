@@ -1,0 +1,1 @@
+{"total":2,"items":[{"uid":"d7b4c8372d142dab6af4556dbec76775","name":"QoE API","statistic":{"failed":0,"broken":0,"skipped":0,"passed":4,"unknown":0,"total":4}},{"uid":"4256ae45099374bb19e930489ad2f851","name":"Video Catalog API","statistic":{"failed":0,"broken":0,"skipped":0,"passed":3,"unknown":0,"total":3}}]}
