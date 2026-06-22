@@ -69,27 +69,37 @@ jobs:
             exit 1
           fi
 
+      - name: Install k6
+        if: steps.smoke-gate.outputs.passed == 'true'
+        run: |
+          K6_VERSION=v0.57.0
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          sudo mv "/tmp/k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+
       - name: Run k6 performance smoke
         id: k6
         if: steps.smoke-gate.outputs.passed == 'true'
-        uses: grafana/k6-action@v0.3.1
-        with:
-          filename: platform/tests/load/load-test.js
         env:
           API_BASE: http://localhost:8080
+        run: k6 run platform/tests/load/load-test.js
 
       - name: Evaluate performance smoke gate
         id: perf-gate
         if: always()
         run: |
-          if [ "${{ steps.k6.outcome }}" != "success" ]; then
+          if [ "${{ steps.smoke-gate.outputs.passed }}" != "true" ]; then
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "Perf skipped — smoke gate did not pass"
+            exit 0
+          fi
+          if [ "${{ steps.k6.outcome }}" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
             echo "passed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          chmod +x platform/scripts/quality-gate.sh
-          MAX_ERROR_RATE=0.01 MAX_P95_MS=800 ERROR_RATE=0 P95_MS=200 \
-            platform/scripts/quality-gate.sh pr
-          echo "passed=true" >> "$GITHUB_OUTPUT"
 
       - name: Promotion gate decision
         id: promotion-gate
