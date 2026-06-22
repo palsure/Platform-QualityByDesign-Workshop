@@ -518,8 +518,7 @@ jobs:
       (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-bat]')) &&
       (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-bat]')) &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
-      needs.build.result == 'success' &&
-      needs.publish-internal.result == 'success'
+      needs.publish-internal.outputs.distributed == 'true'
     continue-on-error: true
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
@@ -750,6 +749,9 @@ jobs:
           elif [ "$BAT" = "success" ]; then
             echo "BAT gate PASSED — Smoke tests can start"
             echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "failure" ]; then
+            echo "BAT gate FAILED — tests ran but reported failures"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           elif [ "$TOTAL_TESTS" -eq 0 ]; then
             # Device never came up, runner crashed before tests ran, or
             # Gradle wrote a 0-test stub. Treat as device unavailable so
@@ -793,8 +795,7 @@ jobs:
        (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[skip-bat]'))) &&
       inputs.skip_tests != true &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
-      needs.build.result == 'success' &&
-      needs.publish-internal.result == 'success'
+      needs.publish-internal.outputs.distributed == 'true'
     steps:
       - name: Log skip reason
         run: |
@@ -1153,6 +1154,9 @@ jobs:
       needs.build.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true'
 
+    outputs:
+      distributed: ${{ steps.publish-gate.outputs.passed }}
+
     steps:
       - name: Record job start time
         run: echo "PUBLISH_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -1243,6 +1247,19 @@ jobs:
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
+      - name: Evaluate Firebase internal publish gate
+        id: publish-gate
+        if: always()
+        run: |
+          OUT="${{ steps.firebase-publish.outcome }}"
+          if [ "$OUT" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Firebase internal distribution did not complete (outcome=$OUT). Configure FIREBASE_TOKEN and FIREBASE_APP_ID_ANDROID — see docs/FIREBASE-SETUP.md"
+            exit 1
+          fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. PUBLISH PUBLIC — Firebase App Distribution (external testers)
 #
@@ -1264,7 +1281,7 @@ jobs:
     if: |
       always() &&
       needs.build.result == 'success' &&
-      needs.publish-internal.result == 'success' &&
+      needs.publish-internal.outputs.distributed == 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.bat-e2e.outputs.gate_passed == 'true'
 
@@ -1392,7 +1409,7 @@ jobs:
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build APK | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Firebase Internal | ${{ needs.publish-internal.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Internal | ${{ needs.publish-internal.outputs.distributed == 'true' && 'passed' || (needs.publish-internal.result == 'skipped' && 'skipped' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (device unavailable)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Public | ${{ needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -1416,7 +1433,7 @@ jobs:
           STAGE4_NAME: Build APK
           STAGE4_RESULT: ${{ needs.build.result }}
           STAGE5_NAME: Firebase Internal
-          STAGE5_RESULT: ${{ needs.publish-internal.result }}
+          STAGE5_RESULT: ${{ needs.publish-internal.outputs.distributed == 'true' && 'success' || (needs.publish-internal.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE6_NAME: BAT Tests
           STAGE6_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
           STAGE7_NAME: Firebase Public
@@ -1446,7 +1463,12 @@ jobs:
             ${{ (needs.devsecops.outputs.passed == 'true' &&
                  needs.unit-tests.result == 'success' &&
                  needs.unit-tests.outputs.gate_passed == 'true' &&
+                 needs.lint.result == 'success' &&
                  needs.build.result == 'success' &&
+                 needs.publish-internal.outputs.distributed == 'true' &&
+                 (needs.bat-e2e.result == 'skipped' ||
+                  needs.bat-e2e.outputs.gate_passed == 'true' ||
+                  needs.bat-e2e.outputs.gate_passed == 'skipped') &&
                  needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
@@ -1462,5 +1484,6 @@ jobs:
           needs.unit-tests.outputs.gate_passed == 'false' ||
           needs.lint.result == 'failure' ||
           needs.build.result == 'failure' ||
+          needs.publish-internal.outputs.distributed != 'true' ||
           needs.bat-e2e.outputs.gate_passed == 'false'
         run: exit 1
