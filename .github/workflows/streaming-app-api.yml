@@ -113,11 +113,16 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/slack-stage-notify
+      - uses: ./.github/actions/slack-devsecops-notify
         with:
           module-name:      API
-          stage-name:       DevSecOps Defaults
-          stage-result:     ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          gate-passed:      ${{ needs.devsecops.outputs.passed }}
+          gitleaks:         ${{ needs.devsecops.outputs.gitleaks }}
+          npm-audit:        ${{ needs.devsecops.outputs.npm_audit }}
+          trivy:            ${{ needs.devsecops.outputs.trivy }}
+          conftest:         ${{ needs.devsecops.outputs.conftest }}
+          sbom-api:         ${{ needs.devsecops.outputs.sbom_api }}
+          sbom-web:         ${{ needs.devsecops.outputs.sbom_web }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}

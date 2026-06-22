@@ -1,0 +1,75 @@
+name: 'Slack DevSecOps Notification'
+description: >
+  Post DevSecOps scan breakdown (Gitleaks, npm audit, Trivy, Conftest, SBOM)
+  into the pipeline Slack thread.
+
+inputs:
+  module-name:
+    description: 'Module label, e.g. API, WEB, iOS, ANDROID'
+    required: true
+  thread-ts:
+    description: 'Slack thread timestamp'
+    required: true
+  gate-passed:
+    description: 'Overall DevSecOps gate result (true | false)'
+    required: true
+  gitleaks:
+    description: 'Gitleaks step outcome'
+    default: skipped
+  npm-audit:
+    description: 'npm audit step outcome'
+    default: skipped
+  trivy:
+    description: 'Trivy step outcome'
+    default: skipped
+  conftest:
+    description: 'Conftest step outcome'
+    default: skipped
+  sbom-api:
+    description: 'SBOM backend-api step outcome'
+    default: skipped
+  sbom-web:
+    description: 'SBOM web-player step outcome'
+    default: skipped
+  duration:
+    description: 'Human-readable elapsed time'
+    default: ''
+  slack-bot-token:
+    description: 'Slack bot OAuth token'
+    required: true
+  slack-channel-id:
+    description: 'Slack channel ID'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build DevSecOps Slack payload
+      if: always()
+      shell: bash
+      env:
+        MODULE_NAME:      ${{ inputs.module-name }}
+        THREAD_TS:        ${{ inputs.thread-ts }}
+        GATE_PASSED:      ${{ inputs.gate-passed }}
+        GITLEAKS:         ${{ inputs.gitleaks }}
+        NPM_AUDIT:        ${{ inputs.npm-audit }}
+        TRIVY:            ${{ inputs.trivy }}
+        CONFTEST:         ${{ inputs.conftest }}
+        SBOM_API:         ${{ inputs.sbom-api }}
+        SBOM_WEB:         ${{ inputs.sbom-web }}
+        DURATION:         ${{ inputs.duration }}
+        SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+        GITHUB_REPOSITORY:  ${{ github.repository }}
+        GITHUB_RUN_ID:      ${{ github.run_id }}
+        GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+        GITHUB_SHA:         ${{ github.sha }}
+      run: python3 .github/scripts/devsecops_result_to_slack.py
+
+    - name: Send to Slack
+      if: always() && inputs.slack-bot-token != ''
+      uses: slackapi/slack-github-action@v2.1.1
+      continue-on-error: true
+      with:
+        method: chat.postMessage
+        token: ${{ inputs.slack-bot-token }}
+        payload-file-path: ./stage-slack-payload.json

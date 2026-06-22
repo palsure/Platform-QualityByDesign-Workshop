@@ -5,13 +5,31 @@ on:
     outputs:
       passed:
         value: ${{ jobs.devsecops.outputs.passed }}
+      gitleaks:
+        value: ${{ jobs.devsecops.outputs.gitleaks }}
+      npm_audit:
+        value: ${{ jobs.devsecops.outputs.npm_audit }}
+      trivy:
+        value: ${{ jobs.devsecops.outputs.trivy }}
+      conftest:
+        value: ${{ jobs.devsecops.outputs.conftest }}
+      sbom_api:
+        value: ${{ jobs.devsecops.outputs.sbom_api }}
+      sbom_web:
+        value: ${{ jobs.devsecops.outputs.sbom_web }}
 
 jobs:
   devsecops:
     name: DevSecOps Defaults
     runs-on: ubuntu-latest
     outputs:
-      passed: ${{ steps.summary.outputs.passed }}
+      passed:    ${{ steps.summary.outputs.passed }}
+      gitleaks:  ${{ steps.gitleaks.outcome }}
+      npm_audit: ${{ steps.npm-audit.outcome }}
+      trivy:     ${{ steps.trivy.outcome }}
+      conftest:  ${{ steps.conftest.outcome }}
+      sbom_api:  ${{ steps.sbom-api.outcome }}
+      sbom_web:  ${{ steps.sbom-web.outcome }}
     steps:
       - uses: actions/checkout@v4
 

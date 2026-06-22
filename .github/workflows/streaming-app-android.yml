@@ -83,6 +83,8 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/workflows/reusable-devsecops.yaml'
+      - '.github/scripts/devsecops_result_to_slack.py'
   push:
     branches: [main, develop]
     paths:
@@ -90,6 +92,10 @@ on:
       - '.github/workflows/streaming-app-android.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+      - '.github/workflows/reusable-devsecops.yaml'
+      - '.github/scripts/devsecops_result_to_slack.py'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
@@ -144,13 +150,41 @@ jobs:
       # vars context is available in workflow-level inputs; the suffix
       # tells reviewers at a glance which device farm a given run targeted.
       pipeline-steps: >-
-        Unit ∥ Lint → Unit Gate → Build APK → Internal Firebase → BAT →
+        DevSecOps → Unit ∥ Lint → Unit Gate → Build APK → Internal Firebase → BAT →
         BAT Gate → Public Firebase → Smoke
         ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0b. DEVSECOPS — platform security gates (parallel with unit tests / lint)
+# ─────────────────────────────────────────────────────────────────────────────
+  devsecops:
+    name: DevSecOps Defaults
+    uses: ./.github/workflows/reusable-devsecops.yaml
+
+  slack-devsecops:
+    name: Slack — DevSecOps
+    runs-on: ubuntu-latest
+    needs: [notify-start, devsecops]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-devsecops-notify
+        with:
+          module-name:      ANDROID
+          gate-passed:      ${{ needs.devsecops.outputs.passed }}
+          gitleaks:         ${{ needs.devsecops.outputs.gitleaks }}
+          npm-audit:        ${{ needs.devsecops.outputs.npm_audit }}
+          trivy:            ${{ needs.devsecops.outputs.trivy }}
+          conftest:         ${{ needs.devsecops.outputs.conftest }}
+          sbom-api:         ${{ needs.devsecops.outputs.sbom_api }}
+          sbom-web:         ${{ needs.devsecops.outputs.sbom_web }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — JUnit4 + MockK; Allure adapter; inline quality gate (≥80%)
@@ -387,10 +421,11 @@ jobs:
     name: "Build APK"
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [notify-start, unit-tests, lint]
+    needs: [notify-start, unit-tests, lint, devsecops]
     if: |
       always() &&
       inputs.skip_tests != true &&
+      needs.devsecops.outputs.passed == 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.lint.result == 'success'
 
@@ -1188,14 +1223,13 @@ jobs:
     name: "Publish Internal (Firebase)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [notify-start, unit-tests, build]
-    # Gate policy: ship to internal as soon as the build is green and the
+    needs: [notify-start, unit-tests, build, devsecops]
+    # Gate policy: ship to internal as soon as DevSecOps + build are green and the
     # Unit gate passes. We deliberately do NOT wait for BAT/Smoke here —
-    # internal-testers are the audience that catches device-level issues
-    # the unit suite cannot see.
     if: |
       always() &&
       inputs.skip_tests != true &&
+      needs.devsecops.outputs.passed == 'true' &&
       needs.build.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true'
 
@@ -1406,6 +1440,7 @@ jobs:
     timeout-minutes: 10
     needs:
       - notify-start
+      - devsecops
       - unit-tests
       - lint
       - build
@@ -1433,6 +1468,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| DevSecOps | ${{ needs.devsecops.outputs.passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
@@ -1453,34 +1489,26 @@ jobs:
         if: always()
         env:
           MODULE_NAME: ANDROID
-          # Chain order matches the actual pipeline execution:
-          # Unit ∥ Lint → Unit Gate → Build → Internal Firebase → BAT →
-          # BAT Gate → Public Firebase → Smoke
-          STAGE1_NAME: Unit Tests (JUnit4)
-          # Use gate output (actual test outcome) so cosmetic step failures
-          # like Allure-publish flakes don't poison the chain rendering.
-          STAGE1_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE2_NAME: Lint
-          STAGE2_RESULT: ${{ needs.lint.result }}
-          STAGE3_NAME: "Unit Gate (≥80%)"
-          STAGE3_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE4_NAME: Build APK
-          STAGE4_RESULT: ${{ needs.build.result }}
-          STAGE5_NAME: Firebase Internal
-          STAGE5_RESULT: ${{ needs.publish-internal.result }}
-          STAGE6_NAME: BAT Tests
-          # bat-e2e has continue-on-error: true, so needs.bat-e2e.result is
-          # always 'success' even on hard failure. Read the gate output
-          # instead — it is the source of truth (true | false | skipped).
-          # When bat-e2e.result == 'skipped' the whole job was bypassed via
-          # skip_bat / vars.SKIP_BAT (device lab availability).
-          STAGE6_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
-          STAGE7_NAME: BAT Gate
+          STAGE1_NAME: DevSecOps Defaults
+          STAGE1_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          STAGE2_NAME: Unit Tests (JUnit4)
+          STAGE2_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE3_NAME: Lint
+          STAGE3_RESULT: ${{ needs.lint.result }}
+          STAGE4_NAME: "Unit Gate (≥80%)"
+          STAGE4_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE5_NAME: Build APK
+          STAGE5_RESULT: ${{ needs.build.result }}
+          STAGE6_NAME: Firebase Internal
+          STAGE6_RESULT: ${{ needs.publish-internal.result }}
+          STAGE7_NAME: BAT Tests
           STAGE7_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
-          STAGE8_NAME: Firebase Public
-          STAGE8_RESULT: ${{ needs.publish-public.result }}
-          STAGE9_NAME: Smoke Tests
-          STAGE9_RESULT: ${{ needs.smoke-e2e.result }}
+          STAGE8_NAME: BAT Gate
+          STAGE8_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
+          STAGE9_NAME: Firebase Public
+          STAGE9_RESULT: ${{ needs.publish-public.result }}
+          STAGE10_NAME: Smoke Tests
+          STAGE10_RESULT: ${{ needs.smoke-e2e.result }}
           TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -1501,7 +1529,8 @@ jobs:
           # Unit gate alone. Only a HARD BAT failure ('false') flips the
           # overall pipeline verdict to 'failure'.
           build-verdict: >-
-            ${{ (needs.unit-tests.result == 'success' &&
+            ${{ (needs.devsecops.outputs.passed == 'true' &&
+                 needs.unit-tests.result == 'success' &&
                  needs.unit-tests.outputs.gate_passed == 'true' &&
                  needs.build.result == 'success' &&
                  needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
@@ -1514,6 +1543,7 @@ jobs:
         # 'success' — gate_passed is the real outcome (true | false | skipped).
         # 'skipped' (device unavailable) is NOT a critical failure.
         if: |
+          needs.devsecops.outputs.passed != 'true' ||
           needs.unit-tests.result == 'failure' ||
           needs.unit-tests.outputs.gate_passed == 'false' ||
           needs.lint.result == 'failure' ||

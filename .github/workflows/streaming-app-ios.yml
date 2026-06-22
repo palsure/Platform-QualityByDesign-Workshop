@@ -4,6 +4,7 @@ name: Streaming App — iOS
 #
 # Pipeline flow:
 #   0. notify-start     — Post "build started" to Slack; capture thread_ts + start_epoch.
+#   0b. devsecops       — Gitleaks · npm audit · Trivy · Conftest · SBOM (platform gates).
 #   1. unit-tests       — XCTest unit tests via swift test; inline unit gate (≥80%).
 #   2. build-app        — swift build release; produces build artifact.
 #   3. bat-e2e          — @BAT XCTest; swift test --filter BATTests; inline BAT gate.
@@ -41,6 +42,8 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/workflows/reusable-devsecops.yaml'
+      - '.github/scripts/devsecops_result_to_slack.py'
   push:
     branches: [main, develop]
     paths:
@@ -48,6 +51,10 @@ on:
       - '.github/workflows/streaming-app-ios.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+      - '.github/workflows/reusable-devsecops.yaml'
+      - '.github/scripts/devsecops_result_to_slack.py'
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:
@@ -84,11 +91,39 @@ jobs:
     uses: ./.github/workflows/shared-notify-build-started.yml
     with:
       module-name:       iOS
-      pipeline-steps:    "Unit → Unit Gate → Build → BAT → Smoke → Regression (nightly) → Firebase"
+      pipeline-steps:    "DevSecOps → Unit → Unit Gate → Build → BAT → Smoke → Firebase"
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0b. DEVSECOPS — platform security gates (parallel with unit tests)
+# ─────────────────────────────────────────────────────────────────────────────
+  devsecops:
+    name: DevSecOps Defaults
+    uses: ./.github/workflows/reusable-devsecops.yaml
+
+  slack-devsecops:
+    name: Slack — DevSecOps
+    runs-on: ubuntu-latest
+    needs: [notify-start, devsecops]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-devsecops-notify
+        with:
+          module-name:      iOS
+          gate-passed:      ${{ needs.devsecops.outputs.passed }}
+          gitleaks:         ${{ needs.devsecops.outputs.gitleaks }}
+          npm-audit:        ${{ needs.devsecops.outputs.npm_audit }}
+          trivy:            ${{ needs.devsecops.outputs.trivy }}
+          conftest:         ${{ needs.devsecops.outputs.conftest }}
+          sbom-api:         ${{ needs.devsecops.outputs.sbom_api }}
+          sbom-web:         ${{ needs.devsecops.outputs.sbom_web }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — XCTest via swift test; JUnit XML output; inline gate (≥80%)
@@ -244,9 +279,11 @@ jobs:
     name: "Build App (swift build)"
     runs-on: macos-latest
     timeout-minutes: 20
-    needs: [notify-start, unit-tests]
-    # Industry-standard fail-fast: only build if unit tests passed the gate.
-    if: needs.unit-tests.outputs.gate_passed == 'true'
+    needs: [notify-start, unit-tests, devsecops]
+    # Industry-standard fail-fast: only build if unit tests and DevSecOps passed.
+    if: |
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.devsecops.outputs.passed == 'true'
 
     steps:
       - name: Record job start time
@@ -676,8 +713,9 @@ jobs:
     name: "Publish Internal (Firebase)"
     runs-on: macos-latest
     timeout-minutes: 15
-    needs: [notify-start, unit-tests, build-app, bat-e2e, smoke-e2e]
+    needs: [notify-start, unit-tests, build-app, bat-e2e, smoke-e2e, devsecops]
     # Soft-gate policy:
+    #   • DevSecOps MUST pass.
     #   • Build MUST succeed.
     #   • Unit gate MUST pass — this is the mandatory deploy gate.
     #   • BAT gate must NOT be a hard failure ('false'). 'skipped' (toolchain
@@ -685,6 +723,7 @@ jobs:
     #   • Smoke result must not be a hard failure (skipped/success both OK).
     if: |
       always() &&
+      needs.devsecops.outputs.passed == 'true' &&
       needs.build-app.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.bat-e2e.outputs.gate_passed != 'false' &&
@@ -741,12 +780,13 @@ jobs:
     name: "Publish Public (Firebase)"
     runs-on: macos-latest
     timeout-minutes: 15
-    needs: [notify-start, unit-tests, build-app, bat-e2e, publish-internal]
+    needs: [notify-start, unit-tests, build-app, bat-e2e, publish-internal, devsecops]
     # Same soft-gate policy as publish-internal: Unit gate is mandatory,
-    # BAT 'skipped' (toolchain unavailable) is acceptable, BAT 'false' blocks.
+    # DevSecOps must pass, BAT 'skipped' (toolchain unavailable) is acceptable, BAT 'false' blocks.
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
+      needs.devsecops.outputs.passed == 'true' &&
       needs.build-app.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.bat-e2e.outputs.gate_passed != 'false' &&
@@ -805,6 +845,7 @@ jobs:
     timeout-minutes: 10
     needs:
       - notify-start
+      - devsecops
       - unit-tests
       - build-app
       - bat-e2e
@@ -829,6 +870,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| DevSecOps | ${{ needs.devsecops.outputs.passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build App | ${{ needs.build-app.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -846,23 +888,20 @@ jobs:
         if: always()
         env:
           MODULE_NAME:    iOS
-          STAGE1_NAME:    Unit Tests (XCTest)
-          # Use gate output (actual test outcome) so cosmetic step failures
-          # like Allure-publish flakes don't poison the chain rendering.
-          STAGE1_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE2_NAME:    "Unit Gate (≥80%)"
+          STAGE1_NAME:    DevSecOps Defaults
+          STAGE1_RESULT:  ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          STAGE2_NAME:    Unit Tests (XCTest)
           STAGE2_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE3_NAME:    Build App
-          STAGE3_RESULT:  ${{ needs.build-app.result }}
-          STAGE4_NAME:    BAT Tests
-          # bat-e2e has continue-on-error: true, so needs.bat-e2e.result is
-          # always 'success' even on hard failure. Read the gate output
-          # instead — it is the source of truth (true | false | skipped).
-          STAGE4_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
-          STAGE5_NAME:    BAT Gate
+          STAGE3_NAME:    "Unit Gate (≥80%)"
+          STAGE3_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE4_NAME:    Build App
+          STAGE4_RESULT:  ${{ needs.build-app.result }}
+          STAGE5_NAME:    BAT Tests
           STAGE5_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
-          STAGE6_NAME:    Smoke Tests
-          STAGE6_RESULT:  ${{ needs.smoke-e2e.result }}
+          STAGE6_NAME:    BAT Gate
+          STAGE6_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
+          STAGE7_NAME:    Smoke Tests
+          STAGE7_RESULT:  ${{ needs.smoke-e2e.result }}
           TOTAL_DURATION:     ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY:  ${{ github.repository }}
           GITHUB_RUN_ID:      ${{ github.run_id }}
@@ -883,7 +922,8 @@ jobs:
           # Unit gate alone. Only a HARD BAT failure ('false') flips the
           # overall pipeline verdict to 'failure'.
           build-verdict: >-
-            ${{ (needs.unit-tests.result == 'success' &&
+            ${{ (needs.devsecops.outputs.passed == 'true' &&
+                 needs.unit-tests.result == 'success' &&
                  needs.unit-tests.outputs.gate_passed == 'true' &&
                  needs.build-app.result == 'success' &&
                  needs.bat-e2e.outputs.gate_passed != 'false') && 'success' || 'failure' }}
@@ -896,6 +936,7 @@ jobs:
         # 'success' — gate_passed is the real outcome (true | false | skipped).
         # 'skipped' (toolchain unavailable) is NOT a critical failure.
         if: |
+          needs.devsecops.outputs.passed != 'true' ||
           needs.unit-tests.result == 'failure' ||
           needs.unit-tests.outputs.gate_passed == 'false' ||
           needs.build-app.result == 'failure' ||
