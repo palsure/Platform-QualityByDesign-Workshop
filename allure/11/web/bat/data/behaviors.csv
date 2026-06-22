@@ -1,0 +1,6 @@
+"Epic","Feature","Story","FAILED","BROKEN","PASSED","SKIPPED","UNKNOWN"
+"","Player Controls","Pause","0","0","1","0","0"
+"","Time to First Frame","Baseline (reference stream)","0","0","1","0","0"
+"","Visual Fault Detection","Black screen pulse (decoder freeze simulation)","0","0","1","0","0"
+"","ABR","Quality Levels","0","0","1","0","0"
+"","ABR","Bandwidth Estimation","0","0","1","0","0"
