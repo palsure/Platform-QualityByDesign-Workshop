@@ -122,8 +122,15 @@ Update `android-player/firebase.json` with your App ID if deploying locally:
 
 | Secret | Value |
 |---|---|
-| `FIREBASE_TOKEN` | CI token |
-| `FIREBASE_APP_ID_ANDROID` | Android App ID from Firebase Console |
+| `FIREBASE_TOKEN` | CI token (`firebase login:ci`) — **must be a secret**, not a variable |
+
+**Variables or secrets** (App IDs and project metadata):
+
+| Name | Example | Notes |
+|---|---|---|
+| `FIREBASE_APP_ID_ANDROID` | `1:976224…:android:…` | Variable **or** secret (Android pipeline reads both) |
+| `FIREBASE_APP_ID_IOS` | `1:976224…:ios:…` | Variable **or** secret (iOS pipeline reads both) |
+| `FIREBASE_PROJECT_ID` | `platformworkshop-…` | Console link in Slack |
 
 **Variables or secrets** (distribution targets — use **either** emails **or** groups, not both):
 
@@ -133,13 +140,6 @@ Update `android-player/firebase.json` with your App ID if deploying locally:
 | `FIREBASE_INTERNAL_GROUPS` | `internal-testers` | Internal canary (if no email list) |
 | `FIREBASE_PUBLIC_TESTERS` | `qa@co.com` | Public promotion |
 | `FIREBASE_PUBLIC_GROUPS` | `external-testers` | Public promotion |
-| `FIREBASE_PROJECT_ID` | `streamapp-demo` | Console link in Slack |
-
-**Variable** (optional):
-
-| Variable | Value |
-|---|---|
-| `FIREBASE_PROJECT_ID` | Project ID |
 
 ### Pipeline flow
 

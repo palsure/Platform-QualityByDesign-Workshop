@@ -78,6 +78,8 @@ env:
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+  FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+  FIREBASE_APP_ID_IOS: ${{ vars.FIREBASE_APP_ID_IOS || secrets.FIREBASE_APP_ID_IOS }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -661,8 +663,8 @@ jobs:
         run: |
           if command -v firebase &>/dev/null; then
             firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
-              --app "${{ secrets.FIREBASE_APP_ID_IOS }}" \
-              --token "${{ secrets.FIREBASE_TOKEN }}" \
+              --app "${{ env.FIREBASE_APP_ID_IOS }}" \
+              --token "${{ env.FIREBASE_TOKEN }}" \
               --groups internal-testers \
               --release-notes "Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}"
           else
@@ -724,8 +726,8 @@ jobs:
         run: |
           if command -v firebase &>/dev/null; then
             firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
-              --app "${{ secrets.FIREBASE_APP_ID_IOS }}" \
-              --token "${{ secrets.FIREBASE_TOKEN }}" \
+              --app "${{ env.FIREBASE_APP_ID_IOS }}" \
+              --token "${{ env.FIREBASE_TOKEN }}" \
               --groups "${{ secrets.FIREBASE_TESTERS || 'external-testers' }}" \
               --release-notes "Build #${{ github.run_number }} — ${{ env.ENV_LABEL }}"
           else

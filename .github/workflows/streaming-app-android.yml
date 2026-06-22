@@ -128,7 +128,7 @@ env:
   # step-level `if: env.FIREBASE_TOKEN != ''` checks can see them.
   # Step-level `if:` cannot access secrets directly nor a step's own env.
   FIREBASE_TOKEN:           ${{ secrets.FIREBASE_TOKEN }}
-  FIREBASE_APP_ID_ANDROID:  ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+  FIREBASE_APP_ID_ANDROID:  ${{ vars.FIREBASE_APP_ID_ANDROID || secrets.FIREBASE_APP_ID_ANDROID }}
   # Variable (NOT a secret) — used to construct a clickable Firebase
   # Console URL in the publish-internal / publish-public Slack messages.
   # Secrets get masked in URL tokens, so we use the project ID (which
@@ -1202,8 +1202,8 @@ jobs:
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
-          token: ${{ secrets.FIREBASE_TOKEN }}
+          appId: ${{ env.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ env.FIREBASE_TOKEN }}
           groups:  ${{ steps.targets.outputs.groups }}
           testers: ${{ steps.targets.outputs.testers }}
           file: apk-artifacts/debug/app-debug.apk
@@ -1256,7 +1256,7 @@ jobs:
             echo "passed=true" >> "$GITHUB_OUTPUT"
           else
             echo "passed=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Firebase internal distribution did not complete (outcome=$OUT). Configure FIREBASE_TOKEN and FIREBASE_APP_ID_ANDROID — see docs/FIREBASE-SETUP.md"
+            echo "::error::Firebase internal distribution did not complete (outcome=$OUT). Set FIREBASE_TOKEN (secret) and FIREBASE_APP_ID_ANDROID (variable or secret) — see docs/FIREBASE-SETUP.md"
             exit 1
           fi
 
@@ -1329,8 +1329,8 @@ jobs:
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
-          token: ${{ secrets.FIREBASE_TOKEN }}
+          appId: ${{ env.FIREBASE_APP_ID_ANDROID }}
+          token: ${{ env.FIREBASE_TOKEN }}
           groups:  ${{ steps.targets-pub.outputs.groups }}
           testers: ${{ steps.targets-pub.outputs.testers }}
           file: apk-artifacts/debug/app-debug.apk
