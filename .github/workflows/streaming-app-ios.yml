@@ -91,7 +91,7 @@ jobs:
     uses: ./.github/workflows/shared-notify-build-started.yml
     with:
       module-name:       iOS
-      pipeline-steps:    "DevSecOps → Unit → Unit Gate → Build → BAT → Smoke → Firebase"
+      pipeline-steps:    "DevSecOps → Unit → Build → BAT → Smoke → Firebase"
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
@@ -102,28 +102,14 @@ jobs:
 # ─────────────────────────────────────────────────────────────────────────────
   devsecops:
     name: DevSecOps Defaults
+    needs: [notify-start]
     uses: ./.github/workflows/reusable-devsecops.yaml
-
-  slack-devsecops:
-    name: Slack — DevSecOps
-    runs-on: ubuntu-latest
-    needs: [notify-start, devsecops]
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/slack-devsecops-notify
-        with:
-          module-name:      iOS
-          gate-passed:      ${{ needs.devsecops.outputs.passed }}
-          gitleaks:         ${{ needs.devsecops.outputs.gitleaks }}
-          npm-audit:        ${{ needs.devsecops.outputs.npm_audit }}
-          trivy:            ${{ needs.devsecops.outputs.trivy }}
-          conftest:         ${{ needs.devsecops.outputs.conftest }}
-          sbom-api:         ${{ needs.devsecops.outputs.sbom_api }}
-          sbom-web:         ${{ needs.devsecops.outputs.sbom_web }}
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+    with:
+      module-name:       iOS
+      thread-ts:         ${{ needs.notify-start.outputs.thread_ts }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — XCTest via swift test; JUnit XML output; inline gate (≥80%)
@@ -260,17 +246,6 @@ jobs:
           else:
               print(f"✅ PASSED — build and BAT tests can proceed")
           EOF
-
-      - name: Post unit gate decision to Slack
-        if: always()
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      ${{ steps.unit-gate.outputs.gate_passed }}
-          proceed-message:  "Unit gate *PASSED* — build and BAT tests can proceed…"
-          blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. BAT tests *BLOCKED*."
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. BUILD APP — swift build release; produces artifact
@@ -473,28 +448,6 @@ jobs:
             echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Post BAT gate decision to Slack
-        if: always() && steps.bat-gate.outputs.gate_passed != 'skipped'
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      ${{ steps.bat-gate.outputs.gate_passed }}
-          proceed-message:  "BAT gate *PASSED* — running Smoke tests…"
-          blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
-      - name: Post BAT skipped notice to Slack (toolchain unavailable)
-        if: always() && steps.bat-gate.outputs.gate_passed == 'skipped'
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      'true'
-          proceed-message:  "BAT *SKIPPED* — iOS toolchain did not respond within 60 s. Proceeding to Firebase based on the Unit test gate."
-          blocked-message:  ""
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. SMOKE E2E — swift test --filter SmokeTests; JUnit XML; after BAT gate
 # ─────────────────────────────────────────────────────────────────────────────
@@ -674,39 +627,6 @@ jobs:
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. QUALITY GATE — BAT gate failed; block Firebase and alert team
-# ─────────────────────────────────────────────────────────────────────────────
-  quality-gate:
-    name: "Quality Gate"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [notify-start, bat-e2e]
-    # Only block deployment on a HARD BAT failure (tests ran and reported
-    # failures). 'skipped' (toolchain unavailable) is not a blocker —
-    # Firebase deploy proceeds based on the Unit gate per the soft-gate policy.
-    if: always() && needs.bat-e2e.outputs.gate_passed == 'false'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Block deployment
-        run: |
-          echo "❌ BAT gate failed — build #${{ github.run_number }} blocked from Firebase distribution"
-          echo "Commit: ${{ github.sha }} will NOT be published"
-          echo "Branch: ${{ github.head_ref || github.ref_name }}"
-
-      - name: Notify Slack — deployment blocked
-        if: always()
-        uses: ./.github/actions/slack-stage-notify
-        with:
-          module-name:      iOS
-          stage-name:       "Deployment Blocked (BAT Gate Failed)"
-          stage-result:     failure
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # 7. PUBLISH INTERNAL — Firebase App Distribution (internal testers)
 # ─────────────────────────────────────────────────────────────────────────────
   publish-internal:
@@ -872,10 +792,8 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| DevSecOps | ${{ needs.devsecops.outputs.passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build App | ${{ needs.build-app.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (toolchain unavailable)' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| BAT Gate | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (soft-gated)' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
@@ -892,16 +810,12 @@ jobs:
           STAGE1_RESULT:  ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
           STAGE2_NAME:    Unit Tests (XCTest)
           STAGE2_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE3_NAME:    "Unit Gate (≥80%)"
-          STAGE3_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE4_NAME:    Build App
-          STAGE4_RESULT:  ${{ needs.build-app.result }}
-          STAGE5_NAME:    BAT Tests
-          STAGE5_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
-          STAGE6_NAME:    BAT Gate
-          STAGE6_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
-          STAGE7_NAME:    Smoke Tests
-          STAGE7_RESULT:  ${{ needs.smoke-e2e.result }}
+          STAGE3_NAME:    Build App
+          STAGE3_RESULT:  ${{ needs.build-app.result }}
+          STAGE4_NAME:    BAT Tests
+          STAGE4_RESULT:  ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
+          STAGE5_NAME:    Smoke Tests
+          STAGE5_RESULT:  ${{ needs.smoke-e2e.result }}
           TOTAL_DURATION:     ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY:  ${{ github.repository }}
           GITHUB_RUN_ID:      ${{ github.run_id }}

@@ -29,8 +29,7 @@ def main() -> None:
         ("Contract tests (backend-api)", os.environ.get("STAGE_CONTRACT", "skipped")),
         ("Integration / BAT (backend-api)", os.environ.get("STAGE_INTEGRATION", "skipped")),
         ("Web unit tests (web-player)", os.environ.get("STAGE_WEB", "skipped")),
-        ("Ephemeral env + smoke", os.environ.get("STAGE_SMOKE", "skipped")),
-        ("Performance smoke (k6)", os.environ.get("STAGE_PERF", "skipped")),
+        ("Ephemeral validation (smoke + k6)", os.environ.get("STAGE_EPHEMERAL", "skipped")),
         ("Promotion gate", os.environ.get("STAGE_PROMOTE", "skipped")),
     ]
 

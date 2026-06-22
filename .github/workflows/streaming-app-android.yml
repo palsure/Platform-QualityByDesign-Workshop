@@ -150,8 +150,8 @@ jobs:
       # vars context is available in workflow-level inputs; the suffix
       # tells reviewers at a glance which device farm a given run targeted.
       pipeline-steps: >-
-        DevSecOps → Unit ∥ Lint → Unit Gate → Build APK → Internal Firebase → BAT →
-        BAT Gate → Public Firebase → Smoke
+        DevSecOps → Unit ∥ Lint → Build APK → Internal Firebase → BAT →
+        Public Firebase → Smoke
         ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
@@ -163,28 +163,14 @@ jobs:
 # ─────────────────────────────────────────────────────────────────────────────
   devsecops:
     name: DevSecOps Defaults
+    needs: [notify-start]
     uses: ./.github/workflows/reusable-devsecops.yaml
-
-  slack-devsecops:
-    name: Slack — DevSecOps
-    runs-on: ubuntu-latest
-    needs: [notify-start, devsecops]
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/slack-devsecops-notify
-        with:
-          module-name:      ANDROID
-          gate-passed:      ${{ needs.devsecops.outputs.passed }}
-          gitleaks:         ${{ needs.devsecops.outputs.gitleaks }}
-          npm-audit:        ${{ needs.devsecops.outputs.npm_audit }}
-          trivy:            ${{ needs.devsecops.outputs.trivy }}
-          conftest:         ${{ needs.devsecops.outputs.conftest }}
-          sbom-api:         ${{ needs.devsecops.outputs.sbom_api }}
-          sbom-web:         ${{ needs.devsecops.outputs.sbom_web }}
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+    with:
+      module-name:       ANDROID
+      thread-ts:         ${{ needs.notify-start.outputs.thread_ts }}
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. UNIT TESTS — JUnit4 + MockK; Allure adapter; inline quality gate (≥80%)
@@ -331,17 +317,6 @@ jobs:
           else:
               print(f"✅ PASSED — runs in parallel with build and BAT")
           EOF
-
-      - name: Post unit gate decision to Slack
-        if: always()
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      ${{ steps.unit-gate.outputs.gate_passed }}
-          proceed-message:  "Unit gate *PASSED* — runs in parallel with BAT (Firebase publish enforces this gate)."
-          blocked-message:  "Unit gate *FAILED* — pass rate below ${{ env.QUALITY_GATE_THRESHOLD }}%. Firebase publish *BLOCKED* (BAT continues for diagnostics)."
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. LINT — Kotlin static analysis; runs IN PARALLEL with unit tests
@@ -788,28 +763,6 @@ jobs:
             echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Post BAT gate decision to Slack
-        if: always() && steps.bat-gate.outputs.gate_passed != 'skipped'
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      ${{ steps.bat-gate.outputs.gate_passed }}
-          proceed-message:  "BAT gate *PASSED* — running Smoke tests…"
-          blocked-message:  "BAT gate *FAILED* — Smoke tests and Firebase publish *BLOCKED*."
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
-      - name: Post BAT skipped notice to Slack (device unavailable)
-        if: always() && steps.bat-gate.outputs.gate_passed == 'skipped'
-        uses: ./.github/actions/slack-gate-notify
-        with:
-          gate-passed:      'true'
-          proceed-message:  "BAT *SKIPPED* — Android device unavailable${{ vars.LT_USERNAME != '' && ' on LambdaTest' || ' (emulator did not boot within 5 min)' }}. Proceeding to Firebase based on the Unit test gate."
-          blocked-message:  ""
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 4b. BAT SKIP NOTICE — pre-flight skip when the device lab is unavailable
 #
@@ -1178,39 +1131,6 @@ jobs:
 #    build accessible to them while we investigate is intentional. What we
 #    DO block is promotion to the public channel.
 # ─────────────────────────────────────────────────────────────────────────────
-  quality-gate:
-    name: "Quality Gate"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [notify-start, bat-e2e]
-    # Only block public promotion on a HARD BAT failure (tests ran and
-    # reported failures). 'skipped' (device lab unavailable) is not a
-    # blocker — public promotion proceeds based on the Unit gate per the
-    # soft-gate policy.
-    if: always() && needs.bat-e2e.outputs.gate_passed == 'false'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Block public promotion
-        run: |
-          echo "BAT gate failed — build #${{ github.run_number }} BLOCKED from public Firebase distribution"
-          echo "Internal release is still live for internal-testers — fix BAT and re-run to promote."
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.head_ref || github.ref_name }}"
-
-      - name: Notify Slack — public promotion blocked
-        if: always()
-        uses: ./.github/actions/slack-stage-notify
-        with:
-          module-name:     ANDROID
-          stage-name:      "Public Promotion Blocked (BAT Gate Failed)"
-          stage-result:    failure
-          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # 8. PUBLISH INTERNAL — Firebase App Distribution (internal testers)
 #
 #    Runs RIGHT AFTER build, BEFORE BAT/Smoke. The internal channel is our
@@ -1471,11 +1391,9 @@ jobs:
           echo "| DevSecOps | ${{ needs.devsecops.outputs.passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build APK | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Internal | ${{ needs.publish-internal.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (device unavailable)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| BAT Gate | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (soft-gated)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Public | ${{ needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1495,20 +1413,16 @@ jobs:
           STAGE2_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE3_NAME: Lint
           STAGE3_RESULT: ${{ needs.lint.result }}
-          STAGE4_NAME: "Unit Gate (≥80%)"
-          STAGE4_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE5_NAME: Build APK
-          STAGE5_RESULT: ${{ needs.build.result }}
-          STAGE6_NAME: Firebase Internal
-          STAGE6_RESULT: ${{ needs.publish-internal.result }}
-          STAGE7_NAME: BAT Tests
-          STAGE7_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
-          STAGE8_NAME: BAT Gate
-          STAGE8_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
-          STAGE9_NAME: Firebase Public
-          STAGE9_RESULT: ${{ needs.publish-public.result }}
-          STAGE10_NAME: Smoke Tests
-          STAGE10_RESULT: ${{ needs.smoke-e2e.result }}
+          STAGE4_NAME: Build APK
+          STAGE4_RESULT: ${{ needs.build.result }}
+          STAGE5_NAME: Firebase Internal
+          STAGE5_RESULT: ${{ needs.publish-internal.result }}
+          STAGE6_NAME: BAT Tests
+          STAGE6_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
+          STAGE7_NAME: Firebase Public
+          STAGE7_RESULT: ${{ needs.publish-public.result }}
+          STAGE8_NAME: Smoke Tests
+          STAGE8_RESULT: ${{ needs.smoke-e2e.result }}
           TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}

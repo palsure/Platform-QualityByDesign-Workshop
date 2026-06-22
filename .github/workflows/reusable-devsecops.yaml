@@ -2,6 +2,22 @@ name: Reusable DevSecOps Defaults
 
 on:
   workflow_call:
+    inputs:
+      module-name:
+        required: false
+        type: string
+        default: ''
+      thread-ts:
+        required: false
+        type: string
+        default: ''
+      slack-channel-id:
+        required: false
+        type: string
+        default: ''
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: false
     outputs:
       passed:
         value: ${{ jobs.devsecops.outputs.passed }}
@@ -100,3 +116,21 @@ jobs:
             echo "passed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
+
+      - name: Notify Slack — DevSecOps
+        if: always() && inputs.module-name != '' && inputs.thread-ts != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        uses: ./.github/actions/slack-devsecops-notify
+        with:
+          module-name:      ${{ inputs.module-name }}
+          gate-passed:      ${{ steps.summary.outputs.passed }}
+          gitleaks:         ${{ steps.gitleaks.outcome }}
+          npm-audit:        ${{ steps.npm-audit.outcome }}
+          trivy:            ${{ steps.trivy.outcome }}
+          conftest:         ${{ steps.conftest.outcome }}
+          sbom-api:         ${{ steps.sbom-api.outcome }}
+          sbom-web:         ${{ steps.sbom-web.outcome }}
+          thread-ts:        ${{ inputs.thread-ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ inputs.slack-channel-id }}
