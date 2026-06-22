@@ -21,6 +21,9 @@ inputs:
   env-label:
     description: 'Environment label shown in the metadata line (STAGE / PROD)'
     default: 'STAGE'
+  product-label:
+    description: 'Product name in the updated header (default: Streaming App)'
+    default: 'Streaming App'
   slack-bot-token:
     description: 'Slack bot OAuth token'
     required: true
@@ -67,6 +70,7 @@ runs:
         SLACK_CHANNEL_ID:  ${{ inputs.slack-channel-id }}
         THREAD_TS:         ${{ inputs.thread-ts }}
         MODULE_NAME:       ${{ inputs.module-name }}
+        PRODUCT_LABEL:     ${{ inputs.product-label }}
         BUILD_VERDICT:     ${{ inputs.build-verdict }}
         ENV_LABEL:         ${{ inputs.env-label }}
         GITHUB_RUN_NUMBER: ${{ github.run_number }}

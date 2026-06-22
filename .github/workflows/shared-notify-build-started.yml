@@ -10,6 +10,8 @@
 #             streaming-app-web.yml     (module-name: WEB)
 #             streaming-app-android.yml (module-name: ANDROID)
 #             streaming-app-ios.yml     (module-name: iOS)
+#             quality-by-design.yaml    (module-name: QBD)
+#             streaming-app-newrelic.yml (module-name: NR)
 
 name: Shared — Notify Build Started
 
@@ -28,6 +30,10 @@ on:
         description: 'Environment label shown in the metadata line (STAGE / PROD)'
         type: string
         default: 'STAGE'
+      product-label:
+        description: 'Product name in the Slack header (default: Streaming App)'
+        type: string
+        default: 'Streaming App'
       slack-channel-id:
         description: 'Slack channel ID (C…). Caller passes vars.SLACK_CHANNEL_ID; callee falls back to secrets if needed'
         type: string
@@ -81,7 +87,7 @@ jobs:
           python3 - <<EOF > /tmp/slack-build-started.json
           import json
           blocks = [
-            {"type": "header", "text": {"type": "plain_text", "text": "[${{ inputs.module-name }}] Streaming App  |  Build #${{ github.run_number }}", "emoji": True}},
+            {"type": "header", "text": {"type": "plain_text", "text": "[${{ inputs.module-name }}] ${{ inputs.product-label }}  |  Build #${{ github.run_number }}", "emoji": True}},
             {"type": "section", "text": {"type": "mrkdwn", "text": "*Branch:* \`$BRANCH\`  |  *Environment:* ${{ inputs.environment-label }}  |  *Commit:* <$COMMIT_URL|${SHORT_SHA}>  |  *Triggered by:* $TRIGGERED_BY"}},
             {"type": "divider"},
             {"type": "context", "elements": [{"type": "mrkdwn", "text": "⏳ ${{ inputs.pipeline-steps }}. Results will follow in this thread."}]},

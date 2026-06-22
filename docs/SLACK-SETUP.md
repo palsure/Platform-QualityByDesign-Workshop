@@ -13,13 +13,17 @@ CI/CD pipelines post threaded Slack messages for build start, each stage result,
 
 Pipelines that use Slack:
 
+- `quality-by-design.yaml`
 - `streaming-app-api.yml`
 - `streaming-app-web.yml`
 - `streaming-app-android.yml`
 - `streaming-app-ios.yml`
 - `streaming-app-release.yml`
+- `streaming-app-newrelic.yml`
 
-**Quality by Design** (`quality-by-design.yaml`) posts PR comments instead of Slack.
+PR comments (in addition to Slack on pull requests):
+
+- **Quality by Design** (`quality-by-design.yaml`) — updates a PR comment with gate results
 
 ## 1. Create a Slack app
 

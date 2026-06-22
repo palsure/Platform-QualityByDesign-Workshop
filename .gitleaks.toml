@@ -1,0 +1,11 @@
+title = "Platform Quality by Design — Gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Firebase mobile SDK config files ship client-restricted API keys by design"
+paths = [
+  '''(?i)google-services\.json$''',
+  '''(?i)GoogleService-Info\.plist$''',
+]

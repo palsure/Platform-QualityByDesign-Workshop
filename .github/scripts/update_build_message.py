@@ -43,6 +43,7 @@ def main() -> int:
     ts         = os.environ.get("THREAD_TS", "")
     verdict    = os.environ.get("BUILD_VERDICT", "failure")
     module     = os.environ.get("MODULE_NAME", "API")
+    product    = os.environ.get("PRODUCT_LABEL", "Streaming App")
     run_number = os.environ.get("GITHUB_RUN_NUMBER", "")
     repo       = os.environ.get("GITHUB_REPOSITORY", "")
     sha_full   = os.environ.get("GITHUB_SHA", "unknown")
@@ -75,7 +76,7 @@ def main() -> int:
         outcome, icon = "Skipped — no changes detected", "\u26AA"  # ⚪
     else:
         outcome, icon = "Failed",                         "\u274c"  # ❌
-    header  = f"[{module}] Streaming App  |  Build #{run_number}  \u2014  {icon} {outcome}"
+    header  = f"[{module}] {product}  |  Build #{run_number}  \u2014  {icon} {outcome}"
 
     payload = json.dumps({
         "channel": channel,

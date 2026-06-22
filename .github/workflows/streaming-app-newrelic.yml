@@ -16,6 +16,9 @@
 #   Push to main touching ops/monitoring/newrelic/**→ validate-config + deploy-dashboard / deploy-alerts
 #   workflow_call (from streaming-app-release.yml on tag/release) → record-deployment
 #   workflow_dispatch                                → run any of the jobs ad-hoc
+#
+# Slack (optional — skipped when SLACK_BOT_TOKEN / SLACK_CHANNEL_ID not set):
+#   notify-start → per-job thread replies → final summary
 
 name: Streaming App — New Relic
 
@@ -25,10 +28,22 @@ on:
     paths:
       - 'ops/monitoring/newrelic/**'
       - '.github/workflows/streaming-app-newrelic.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/slack-*'
+      - '.github/scripts/slack_*.py'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/update_build_message.py'
   pull_request:
     paths:
       - 'ops/monitoring/newrelic/**'
       - '.github/workflows/streaming-app-newrelic.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/slack-*'
+      - '.github/scripts/slack_*.py'
+      - '.github/scripts/stage_result_to_slack.py'
+      - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/update_build_message.py'
   workflow_dispatch:
     inputs:
       task:
@@ -59,8 +74,21 @@ concurrency:
 
 env:
   NR_REGION: ${{ secrets.NEW_RELIC_REGION || 'us' }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 jobs:
+  notify-start:
+    uses: ./.github/workflows/shared-notify-build-started.yml
+    with:
+      module-name:       NR
+      product-label:     StreamApp Monitoring
+      pipeline-steps:    Validate → Deploy dashboard → Deploy alerts → Record deployment
+      environment-label: PROD
+      slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
   # ── 1. Validate ───────────────────────────────────────────────────────────────
   # Runs on PRs and on every push so a malformed JSON file fails fast before it
   # ever reaches NerdGraph. Cheap (no NR API calls) so it always runs.
@@ -117,6 +145,22 @@ jobs:
                       ops/monitoring/newrelic/alerts/*.json 2>/dev/null)
           exit $fail
 
+  slack-validate:
+    name: Slack — Validate NR config
+    runs-on: ubuntu-latest
+    needs: [notify-start, validate-config]
+    if: always() && needs.validate-config.result != 'skipped'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      NR
+          stage-name:       Validate NR Config
+          stage-result:     ${{ needs.validate-config.result }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
   # ── 2. Deploy dashboard ───────────────────────────────────────────────────────
   # On main only — we don't want PR previews creating throw-away dashboards in
   # the shared NR account. Re-runs install-dashboard.sh with secrets from the env.
@@ -138,6 +182,22 @@ jobs:
           NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID:   ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
         run: ops/monitoring/newrelic/scripts/install-dashboard.sh
+
+  slack-deploy-dashboard:
+    name: Slack — Deploy dashboard
+    runs-on: ubuntu-latest
+    needs: [notify-start, deploy-dashboard]
+    if: always() && needs.deploy-dashboard.result != 'skipped'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      NR
+          stage-name:       Deploy Dashboard
+          stage-result:     ${{ needs.deploy-dashboard.result }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   # ── 3. Deploy alerts ──────────────────────────────────────────────────────────
   # Same shape as dashboard. The script doesn't exist yet — see the template at
@@ -176,6 +236,22 @@ jobs:
           chmod +x "$SCRIPT"
           "$SCRIPT"
 
+  slack-deploy-alerts:
+    name: Slack — Deploy alerts
+    runs-on: ubuntu-latest
+    needs: [notify-start, deploy-alerts]
+    if: always() && needs.deploy-alerts.result != 'skipped'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      NR
+          stage-name:       Deploy Alerts & Workflow
+          stage-result:     ${{ needs.deploy-alerts.result }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
   # ── 4. Deployment marker ──────────────────────────────────────────────────────
   # Records the release in NR APM so the dashboard's "Deployments" overlay shows
   # exactly when v1.2.3 went out. Triggered only via workflow_call from the
@@ -197,3 +273,97 @@ jobs:
           user:      ${{ github.actor }}
           changelog: 'Release ${{ inputs.version }} (${{ github.event.repository.html_url }}/compare/${{ inputs.commit }})'
           region:    ${{ env.NR_REGION }}
+
+  slack-record-deployment:
+    name: Slack — Record deployment marker
+    runs-on: ubuntu-latest
+    needs: [notify-start, record-deployment]
+    if: always() && needs.record-deployment.result != 'skipped'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      NR
+          stage-name:       Record APM Deployment Marker
+          stage-result:     ${{ needs.record-deployment.result }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
+  nr-report:
+    name: NR Report & Slack Summary
+    runs-on: ubuntu-latest
+    needs:
+      - notify-start
+      - validate-config
+      - deploy-dashboard
+      - deploy-alerts
+      - record-deployment
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate total build duration
+        if: always()
+        run: |
+          START_EPOCH="${{ needs.notify-start.outputs.start_epoch }}"
+          NOW=$(date +%s)
+          ELAPSED=$(( NOW - START_EPOCH ))
+          MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+          [ $MINS -gt 0 ] && DUR="${MINS}m ${SECS}s" || DUR="${SECS}s"
+          echo "TOTAL_DURATION=$DUR" >> "$GITHUB_ENV"
+
+      - name: Build final Slack summary payload
+        if: always()
+        env:
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_REF_NAME:    ${{ github.head_ref || github.ref_name }}
+          GITHUB_SHA:         ${{ github.sha }}
+          TOTAL_DURATION:     ${{ env.TOTAL_DURATION }}
+          MODULE_NAME:        NR
+          THREAD_TS:          ${{ needs.notify-start.outputs.thread_ts }}
+          STAGE1_NAME:        Validate NR Config
+          STAGE1_RESULT:      ${{ needs.validate-config.result == 'skipped' && 'skipped' || needs.validate-config.result }}
+          STAGE2_NAME:        Deploy Dashboard
+          STAGE2_RESULT:      ${{ needs.deploy-dashboard.result == 'skipped' && 'skipped' || needs.deploy-dashboard.result }}
+          STAGE3_NAME:        Deploy Alerts & Workflow
+          STAGE3_RESULT:      ${{ needs.deploy-alerts.result == 'skipped' && 'skipped' || needs.deploy-alerts.result }}
+          STAGE4_NAME:        Record APM Deployment Marker
+          STAGE4_RESULT:      ${{ needs.record-deployment.result == 'skipped' && 'skipped' || needs.record-deployment.result }}
+        run: python3 .github/scripts/module_result_to_slack.py
+
+      - name: Compute overall verdict
+        id: verdict
+        if: always()
+        run: |
+          FAIL=0
+          V="${{ needs.validate-config.result }}"
+          D="${{ needs.deploy-dashboard.result }}"
+          A="${{ needs.deploy-alerts.result }}"
+          R="${{ needs.record-deployment.result }}"
+          for RESULT in "$V" "$D" "$A" "$R"; do
+            if [ "$RESULT" = "failure" ] || [ "$RESULT" = "cancelled" ]; then
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" -eq 0 ]; then
+            echo "verdict=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "verdict=failure" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send final summary to Slack
+        if: always()
+        uses: ./.github/actions/slack-pipeline-report
+        with:
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          module-name:      NR
+          product-label:    StreamApp Monitoring
+          build-verdict:    ${{ steps.verdict.outputs.verdict }}
+          env-label:        PROD
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
