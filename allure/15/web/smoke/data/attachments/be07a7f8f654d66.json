@@ -1,0 +1,8 @@
+[
+  {
+    "severity": "critical",
+    "type": "UNCAUGHT_PAGE_ERROR",
+    "message": "Uncaught JavaScript error",
+    "detail": "t.addPageAction is not a function"
+  }
+]
