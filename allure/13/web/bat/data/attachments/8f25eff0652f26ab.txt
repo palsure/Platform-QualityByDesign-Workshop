@@ -1,0 +1,38 @@
+# Network & Console Timeline
+# Generated: 2026-06-22T01:51:08.440Z
+# Columns: [+offset_ms]  category        method  status  duration  url
+
++    204ms  other           GET     200     176ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/?scenario=black_screen_pulse   
++    230ms  app-asset       GET     200      20ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-D1FmArG4.css   
++    254ms  app-asset       GET     200      44ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-88S1xjXb.js   
++    322ms  other           GET     200       0ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-poster.jpg   
++    322ms  other           GET     200       0ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/wolf-run-poster.jpg   
++    323ms  other           GET     200       1ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-banner.jpg   
++    345ms  other           GET     200      23ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80   
++    348ms  other           GET     200      26ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80   
++    348ms  other           GET     200      26ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80   
++    349ms  other           GET     200      27ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80   
++    353ms  other           GET     200      31ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80   
++    624ms  other           GET     200     302ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80   
++    624ms  other           GET     200     302ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80   
++    624ms  other           GET     200     302ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80   
++    624ms  other           GET     ERR     302ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_BLOCKED_BY_ORB
++    629ms  other           GET     200     307ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80   
++    630ms  other           GET     200     308ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80   
++    630ms  other           GET     200     308ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80   
++    630ms  other           GET     200     308ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80   
++   1174ms  hls-manifest    GET     200      83ms  https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8   
++   1194ms  hls-manifest    GET     200      19ms  https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8   
++   1231ms  hls-segment     GET     200      27ms  https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts   
++   1375ms  hls-manifest    GET     200      17ms  https://test-streams.mux.dev/x36xhzz/url_8/193039199_mp4_h264_aac_fhd_7.m3u8   
++   1538ms  hls-segment     GET     200     163ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts   
++   1793ms  hls-segment     GET     200      47ms  https://test-streams.mux.dev/x36xhzz/url_8/url_592/193039199_mp4_h264_aac_fhd_7.ts   
++   2082ms  hls-segment     GET     200     126ms  https://test-streams.mux.dev/x36xhzz/url_8/url_593/193039199_mp4_h264_aac_fhd_7.ts   
++   2299ms  hls-segment     GET     200      37ms  https://test-streams.mux.dev/x36xhzz/url_8/url_594/193039199_mp4_h264_aac_fhd_7.ts   
++   2415ms  hls-segment     GET     200      34ms  https://test-streams.mux.dev/x36xhzz/url_8/url_595/193039199_mp4_h264_aac_fhd_7.ts   
++   2591ms  hls-segment     GET     200      31ms  https://test-streams.mux.dev/x36xhzz/url_8/url_596/193039199_mp4_h264_aac_fhd_7.ts   
++   2693ms  hls-segment     GET     200      28ms  https://test-streams.mux.dev/x36xhzz/url_8/url_597/193039199_mp4_h264_aac_fhd_7.ts   
++   4289ms  hls-segment     GET     200      19ms  https://test-streams.mux.dev/x36xhzz/url_8/url_598/193039199_mp4_h264_aac_fhd_7.ts   
++   6185ms  qoe-api         POST    200      98ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/api/v1/metrics   
++   6186ms  💥 [pageerror]  t.addPageAction is not a function

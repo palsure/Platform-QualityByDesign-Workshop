@@ -1,0 +1,66 @@
+# Network & Console Timeline
+# Generated: 2026-06-22T01:51:00.182Z
+# Columns: [+offset_ms]  category        method  status  duration  url
+
++    344ms  other           GET     200     318ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/   
++    480ms  app-asset       GET     200     118ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-D1FmArG4.css   
++    534ms  app-asset       GET     200     171ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-88S1xjXb.js   
++    658ms  other           GET     200       2ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/   
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-banner.jpg ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-poster.jpg ❌
+              └─ net::ERR_ABORTED
++    718ms  other           GET     ERR       0ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    719ms  other           GET     ERR       1ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    719ms  other           GET     ERR       1ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    719ms  other           GET     ERR       1ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    719ms  other           GET     ERR       1ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_ABORTED
++    719ms  other           GET     ERR       1ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/wolf-run-poster.jpg ❌
+              └─ net::ERR_ABORTED
++    722ms  app-asset       GET     200       1ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-88S1xjXb.js   
++    723ms  app-asset       GET     200       0ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-D1FmArG4.css   
++    833ms  other           GET     200      21ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80   
++    834ms  other           GET     200      22ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80   
++    850ms  other           GET     200      38ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80   
++    850ms  other           GET     200      38ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80   
++    851ms  other           GET     200      38ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80   
++    851ms  other           GET     200      39ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80   
++    892ms  other           GET     200      80ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80   
++    892ms  other           GET     200      80ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80   
++    892ms  other           GET     200      80ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80   
++    893ms  other           GET     200      81ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80   
++    896ms  other           GET     200      84ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80   
++    896ms  other           GET     200      84ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80   
++    899ms  other           GET     200      87ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-poster.jpg   
++   1038ms  other           GET     200     226ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/wolf-run-poster.jpg   
++   1130ms  other           GET     ERR     318ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_BLOCKED_BY_ORB
++   1589ms  other           GET     200      36ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-banner.jpg   
++   1753ms  hls-manifest    GET     200     200ms  https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8   
++   2397ms  hls-manifest    GET     200     591ms  https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8   
++   3882ms  hls-segment     GET     200     1.48s  https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts   
++   4485ms  hls-manifest    GET     200      61ms  https://test-streams.mux.dev/x36xhzz/url_8/193039199_mp4_h264_aac_fhd_7.m3u8   
++   4552ms  hls-segment     GET     200      67ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts   
++   5154ms  hls-segment     GET     200      91ms  https://test-streams.mux.dev/x36xhzz/url_8/url_592/193039199_mp4_h264_aac_fhd_7.ts   
++   6298ms  hls-segment     GET     200      79ms  https://test-streams.mux.dev/x36xhzz/url_8/url_593/193039199_mp4_h264_aac_fhd_7.ts   

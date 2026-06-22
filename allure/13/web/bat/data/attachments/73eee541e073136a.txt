@@ -1,0 +1,31 @@
+# Network & Console Timeline
+# Generated: 2026-06-22T01:51:00.559Z
+# Columns: [+offset_ms]  category        method  status  duration  url
+
++    294ms  other           GET     200     247ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/?scenario=baseline   
++    460ms  app-asset       GET     200     158ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-D1FmArG4.css   
++    553ms  app-asset       GET     200     251ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/assets/index-88S1xjXb.js   
++    799ms  other           GET     200       8ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80   
++    799ms  other           GET     200       8ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80   
++    799ms  other           GET     200       8ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80   
++    799ms  other           GET     200       8ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80   
++    800ms  other           GET     200       9ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80   
++    809ms  other           GET     200      18ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80   
++    809ms  other           GET     200      18ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80   
++    810ms  other           GET     200      19ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80   
++    810ms  other           GET     200      19ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80   
++    810ms  other           GET     200      19ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80   
++    810ms  other           GET     200      19ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80   
++    822ms  other           GET     200      31ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80   
++    885ms  other           GET     200      94ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-poster.jpg   
++   1023ms  other           GET     200     232ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/wolf-run-poster.jpg   
++   1100ms  other           GET     ERR     309ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_BLOCKED_BY_ORB
++   1610ms  other           GET     200     101ms  https://platformworkshop-6c399--staging-yjktmfq1.web.app/images/catalog/cosmic-journey-banner.jpg   
++   1770ms  hls-manifest    GET     200     261ms  https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8   
++   2905ms  hls-manifest    GET     200     1.14s  https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8   
++   3012ms  hls-segment     GET     200     107ms  https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts   
++   3715ms  hls-manifest    GET     200      63ms  https://test-streams.mux.dev/x36xhzz/url_8/193039199_mp4_h264_aac_fhd_7.m3u8   
++   3806ms  hls-segment     GET     200      91ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts   
++   5397ms  hls-segment     GET     200      67ms  https://test-streams.mux.dev/x36xhzz/url_8/url_592/193039199_mp4_h264_aac_fhd_7.ts   
++   6189ms  hls-segment     GET     200      96ms  https://test-streams.mux.dev/x36xhzz/url_8/url_593/193039199_mp4_h264_aac_fhd_7.ts   
