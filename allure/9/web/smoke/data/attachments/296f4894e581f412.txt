@@ -1,0 +1,26 @@
+## Network Analysis Report
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Overall health | ⚠️ **DEGRADED** |
+| Total requests | 65 |
+| Failed requests | 2 |
+| Slow requests | 0 |
+| Issues found | 2 (0 critical, 1 warnings) |
+
+### Issues Found
+
+⚠️ **HLS_SEGMENT_FAILED** — HLS segment failed (network error)
+   > URL: `https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts`
+   > net::ERR_ABORTED
+
+ℹ️ **NO_QOE_API_CALLS** — No QoE API requests observed — silent mode may be active or the collector is not configured
+
+### HLS Stream Analysis
+
+| | Requests | Errors | Error Rate | Avg | P95 | Max |
+|--|----------|--------|-----------|-----|-----|-----|
+| Manifests | 4 | 0 | 0% | 122ms | 356ms | 356ms |
+| Segments  | 39 | 1 | 3% | 95ms | 183ms | 248ms |

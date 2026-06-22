@@ -1,0 +1,7 @@
+[
+  {
+    "severity": "info",
+    "type": "NO_QOE_API_CALLS",
+    "message": "No QoE API requests observed — silent mode may be active or the collector is not configured"
+  }
+]
