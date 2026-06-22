@@ -1,0 +1,22 @@
+## Network Analysis Report
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Overall health | ✅ **HEALTHY** |
+| Total requests | 46 |
+| Failed requests | 11 |
+| Slow requests | 0 |
+| Issues found | 1 (0 critical, 0 warnings) |
+
+### Issues Found
+
+ℹ️ **NO_QOE_API_CALLS** — No QoE API requests observed — silent mode may be active or the collector is not configured
+
+### HLS Stream Analysis
+
+| | Requests | Errors | Error Rate | Avg | P95 | Max |
+|--|----------|--------|-----------|-----|-----|-----|
+| Manifests | 3 | 0 | 0% | 377ms | 929ms | 929ms |
+| Segments  | 5 | 0 | 0% | 45ms | 87ms | 87ms |

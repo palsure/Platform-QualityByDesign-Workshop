@@ -1,0 +1,34 @@
+# Network & Console Timeline
+# Generated: 2026-06-22T01:25:11.390Z
+# Columns: [+offset_ms]  category        method  status  duration  url
+
++     84ms  other           GET     200      15ms  https://platformworkshop-6c399.web.app/   
++    134ms  app-asset       GET     200       8ms  https://platformworkshop-6c399.web.app/assets/index-D1FmArG4.css   
++    343ms  app-asset       GET     200     217ms  https://platformworkshop-6c399.web.app/assets/index-88S1xjXb.js   
++    609ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/   
++    693ms  app-asset       GET     200       1ms  https://platformworkshop-6c399.web.app/assets/index-88S1xjXb.js   
++    693ms  app-asset       GET     200       0ms  https://platformworkshop-6c399.web.app/assets/index-D1FmArG4.css   
++    943ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/images/catalog/cosmic-journey-poster.jpg   
++    944ms  other           GET     200       1ms  https://platformworkshop-6c399.web.app/images/catalog/cosmic-journey-banner.jpg   
++    944ms  other           GET     200       1ms  https://platformworkshop-6c399.web.app/images/catalog/wolf-run-poster.jpg   
++    951ms  other           GET     200       8ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80   
++    951ms  other           GET     200       8ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80   
++    977ms  other           GET     200      34ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80   
++    989ms  other           GET     200      46ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80   
++    989ms  other           GET     200      46ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80   
++    989ms  other           GET     200      46ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80   
++    990ms  other           GET     200      47ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80   
++   1054ms  other           GET     200     111ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80   
++   1054ms  other           GET     200     111ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80   
++   1054ms  other           GET     200     111ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80   
++   1055ms  other           GET     ERR     112ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_BLOCKED_BY_ORB
++   1055ms  other           GET     200     112ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80   
++   1055ms  other           GET     200     112ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80   
++   2662ms  hls-manifest    GET     200      45ms  https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8   
++   2704ms  hls-manifest    GET     200      41ms  https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8   
++   2717ms  hls-segment     GET     200      13ms  https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts   
++   2852ms  hls-manifest    GET     200      11ms  https://test-streams.mux.dev/x36xhzz/url_8/193039199_mp4_h264_aac_fhd_7.m3u8   
++   2920ms  hls-segment     GET     200      58ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts   
++   3529ms  hls-segment     GET     200      21ms  https://test-streams.mux.dev/x36xhzz/url_8/url_592/193039199_mp4_h264_aac_fhd_7.ts   
++   4391ms  hls-segment     GET     200     108ms  https://test-streams.mux.dev/x36xhzz/url_8/url_593/193039199_mp4_h264_aac_fhd_7.ts   

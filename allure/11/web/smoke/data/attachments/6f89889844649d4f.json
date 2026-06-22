@@ -1,0 +1,20 @@
+[
+  {
+    "severity": "critical",
+    "type": "HIGH_SEGMENT_ERROR_RATE",
+    "message": "HLS segment error rate 6% exceeds 5% threshold",
+    "detail": "1 of 18 segments failed"
+  },
+  {
+    "severity": "warning",
+    "type": "HLS_SEGMENT_FAILED",
+    "message": "HLS segment failed (network error)",
+    "url": "https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts",
+    "detail": "net::ERR_ABORTED"
+  },
+  {
+    "severity": "info",
+    "type": "NO_QOE_API_CALLS",
+    "message": "No QoE API requests observed — silent mode may be active or the collector is not configured"
+  }
+]
