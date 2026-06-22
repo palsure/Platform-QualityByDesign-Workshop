@@ -1,0 +1,1 @@
+[+6348ms] t.addPageAction is not a function
