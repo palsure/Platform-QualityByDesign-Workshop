@@ -1,0 +1,15 @@
+[
+  {
+    "severity": "warning",
+    "type": "HLS_SEGMENT_FAILED",
+    "message": "HLS segment failed (network error)",
+    "url": "https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts",
+    "detail": "net::ERR_ABORTED"
+  },
+  {
+    "severity": "critical",
+    "type": "UNCAUGHT_PAGE_ERROR",
+    "message": "Uncaught JavaScript error",
+    "detail": "t.addPageAction is not a function"
+  }
+]

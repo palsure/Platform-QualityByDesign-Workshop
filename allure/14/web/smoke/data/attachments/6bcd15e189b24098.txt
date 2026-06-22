@@ -1,0 +1,37 @@
+## Network Analysis Report
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Overall health | 🔴 **CRITICAL** |
+| Total requests | 46 |
+| Failed requests | 17 |
+| Slow requests | 0 |
+| Issues found | 1 (1 critical, 0 warnings) |
+
+### Issues Found
+
+🔴 **UNCAUGHT_PAGE_ERROR** — Uncaught JavaScript error
+   > t.addPageAction is not a function
+
+### HLS Stream Analysis
+
+| | Requests | Errors | Error Rate | Avg | P95 | Max |
+|--|----------|--------|-----------|-----|-----|-----|
+| Manifests | 3 | 0 | 0% | 85ms | 148ms | 148ms |
+| Segments  | 4 | 0 | 0% | 38ms | 57ms | 57ms |
+
+### QoE API
+
+| Metric | Value |
+|--------|-------|
+| Requests | 1 |
+| Failures | 0 |
+| Avg response | 459ms |
+| P95 response | 459ms |
+| Max response | 459ms |
+
+### Uncaught JavaScript Errors
+
+- `t.addPageAction is not a function`
