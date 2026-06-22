@@ -75,8 +75,8 @@ Copy the **Hosting URL** printed for the `staging` channel (e.g. `https://YOUR_P
 
 | Variable | Value | Notes |
 |---|---|---|
-| `FIREBASE_PROJECT_ID` | `streamapp-demo` | Appears in public URLs |
-| `FIREBASE_PREVIEW_URL` | `https://…--staging-….web.app` | BAT + Smoke target for preview |
+| `FIREBASE_PROJECT_ID` | `platformworkshop-6c399` | Project ID only |
+| `FIREBASE_PREVIEW_URL` | `https://platformworkshop-6c399--staging-yjktmfq1.web.app` | **Full** channel URL from deploy log — not the project ID |
 | `FIREBASE_CHANNEL_ID` | `staging` | Channel name (default: `staging`) |
 
 ### Pipeline flow
@@ -229,7 +229,8 @@ Slack setup (separate): [SLACK-SETUP.md](SLACK-SETUP.md)
 |---|---|
 | `FIREBASE_TOKEN … missing` | Run `firebase login:ci`; add token as secret |
 | `FIREBASE_PREVIEW_URL is not set` | Deploy channel once locally; save URL as repo variable |
-| BAT fails with wrong URL | Confirm `FIREBASE_PREVIEW_URL` matches the fixed channel URL |
+| BAT fails with wrong URL | `FIREBASE_PREVIEW_URL` must start with `https://` (full channel URL, not project ID) |
+| Slack Preview link broken (`<platformworkshop…\|Preview URL>`) | Same fix — set full `https://…--staging-….web.app` URL; pipeline now auto-extracts from deploy log |
 | App Distribution 404 on group | Create the group in Firebase Console; or use email list via `FIREBASE_INTERNAL_TESTERS` |
 | Preview deploy OK, promote fails | Ensure preview job output `channel` matches deployed channel name |
 | iOS upload fails | Check signing, Team ID, and that IPA path exists in workflow logs |

@@ -460,43 +460,50 @@ jobs:
           CHANNEL="${FIREBASE_CHANNEL_ID:-staging}"
           PREVIEW_URL="$FIREBASE_PREVIEW_URL"
 
+          # Must be a full https URL — not a project ID or hostname fragment.
+          if [ -n "$PREVIEW_URL" ] && [[ ! "$PREVIEW_URL" =~ ^https:// ]]; then
+            echo "::warning::FIREBASE_PREVIEW_URL must be the full channel URL (https://…--staging-….web.app), not '$PREVIEW_URL'. Will extract from deploy output."
+            PREVIEW_URL=""
+          fi
+
           echo "::group::🔍 Resolved configuration"
           echo "Channel ID:           $CHANNEL"
           echo "Preview URL (length): ${#PREVIEW_URL}"
-          echo "Preview URL:          ${PREVIEW_URL:-<not set>}"
+          echo "Preview URL:          ${PREVIEW_URL:-<will extract after deploy>}"
           echo "::endgroup::"
-
-          # Write outputs IMMEDIATELY so they're available downstream even if a later command fails
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
-          echo "PREVIEW_URL=$PREVIEW_URL" >> "$GITHUB_ENV"
 
           if [ -z "$FIREBASE_TOKEN" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
             echo "❌ FIREBASE_TOKEN or FIREBASE_PROJECT_ID secret missing."
             exit 1
           fi
 
-          if [ -z "$PREVIEW_URL" ]; then
-            echo "❌ FIREBASE_PREVIEW_URL is not set (checked both vars and secrets)."
-            echo "   First-time setup:"
-            echo "     1. firebase hosting:channel:deploy $CHANNEL --expires 30d --project $FIREBASE_PROJECT_ID"
-            echo "     2. Copy the URL it prints"
-            echo "     3. Add as repo VARIABLE (recommended): Settings → Secrets and variables → Actions → Variables → New"
-            echo "        Name:  FIREBASE_PREVIEW_URL"
-            echo "        Value: <the URL>"
-            echo "        (Also accepts repo SECRET with the same name)"
-            exit 1
-          fi
-
           echo "🚀 Deploying to fixed channel: $CHANNEL"
+          DEPLOY_LOG=$(mktemp)
           firebase hosting:channel:deploy "$CHANNEL" \
             --expires 30d \
             --project "$FIREBASE_PROJECT_ID" \
-            --token "$FIREBASE_TOKEN"
+            --token "$FIREBASE_TOKEN" 2>&1 | tee "$DEPLOY_LOG"
+
+          # Prefer URL printed by Firebase CLI (authoritative for this channel).
+          EXTRACTED=$(grep -oE 'https://[A-Za-z0-9.-]+--[A-Za-z0-9-]+\.web\.app' "$DEPLOY_LOG" | head -1)
+          if [ -n "$EXTRACTED" ]; then
+            PREVIEW_URL="$EXTRACTED"
+            echo "✅ Using channel URL from deploy output: $PREVIEW_URL"
+          elif [ -z "$PREVIEW_URL" ]; then
+            echo "❌ Could not determine preview URL."
+            echo "   Copy the 'Channel URL' line from the deploy log above into repo variable FIREBASE_PREVIEW_URL"
+            echo "   Example: https://${FIREBASE_PROJECT_ID}--staging-xxxxx.web.app"
+            exit 1
+          fi
+
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "PREVIEW_URL=$PREVIEW_URL" >> "$GITHUB_ENV"
 
           echo ""
           echo "════════════════════════════════════════════════════════════"
           echo "✅ PREVIEW URL: $PREVIEW_URL"
+          echo "   Save as repo variable FIREBASE_PREVIEW_URL if not set yet."
           echo "════════════════════════════════════════════════════════════"
         working-directory: web-player
         env:
