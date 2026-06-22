@@ -1,0 +1,47 @@
+<div>POST to http://localhost:39951/api/v1/metrics</div>
+
+    <h4>Body</h4>
+    <div>
+    <pre class="preformated-text">
+{
+    &quot;sessionId&quot;: &quot;smoke-firetv-cac14488-af8a-4213-a2f1-a70d260f70bd&quot;,
+    &quot;videoId&quot;: &quot;demo-1&quot;,
+    &quot;platform&quot;: &quot;firetv&quot;,
+    &quot;metrics&quot;: {
+        &quot;startupTime&quot;: 600,
+        &quot;errorCount&quot;: 0,
+        &quot;duration&quot;: 300.0,
+        &quot;totalBufferingTime&quot;: 0.5,
+        &quot;playbackState&quot;: &quot;playing&quot;,
+        &quot;currentTime&quot;: 30.0
+    },
+    &quot;timestamp&quot;: &quot;2024-06-01T10:00:00Z&quot;
+}    </pre>
+    </div>
+
+    <h4>Headers</h4>
+    <div>
+            <div>Accept: */*</div>
+            <div>Content-Type: application/json</div>
+    </div>
+
+
+
+    <h4>Curl</h4>
+    <div>
+        curl -v -X POST &#39;http://localhost:39951/api/v1/metrics&#39; -H &#39;Accept: */*&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{
+    &quot;sessionId&quot;: &quot;smoke-firetv-cac14488-af8a-4213-a2f1-a70d260f70bd&quot;,
+    &quot;videoId&quot;: &quot;demo-1&quot;,
+    &quot;platform&quot;: &quot;firetv&quot;,
+    &quot;metrics&quot;: {
+        &quot;startupTime&quot;: 600,
+        &quot;errorCount&quot;: 0,
+        &quot;duration&quot;: 300.0,
+        &quot;totalBufferingTime&quot;: 0.5,
+        &quot;playbackState&quot;: &quot;playing&quot;,
+        &quot;currentTime&quot;: 30.0
+    },
+    &quot;timestamp&quot;: &quot;2024-06-01T10:00:00Z&quot;
+}&#39;
+    </div>
+
