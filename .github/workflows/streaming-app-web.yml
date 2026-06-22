@@ -28,6 +28,9 @@ on:
   pull_request:
     paths:
       - 'web-player/**'
+      - 'platform/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/reusable-*.yaml'
       - '.github/workflows/streaming-app-web.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
@@ -37,6 +40,9 @@ on:
     branches: [main, develop]
     paths:
       - 'web-player/**'
+      - 'platform/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/reusable-*.yaml'
       - '.github/workflows/streaming-app-web.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
@@ -76,11 +82,31 @@ jobs:
     uses: ./.github/workflows/shared-notify-build-started.yml
     with:
       module-name:       WEB
-      pipeline-steps:    "Build → Unit → Unit Gate → Deploy Preview → BAT → Promote → Smoke (async)"
+      pipeline-steps:    "DevSecOps → Build → Unit → Deploy Preview → BAT → Ephemeral → Promote → Smoke (async)"
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  devsecops:
+    name: DevSecOps Defaults
+    uses: ./.github/workflows/reusable-devsecops.yaml
+
+  slack-devsecops:
+    name: Slack — DevSecOps
+    runs-on: ubuntu-latest
+    needs: [notify-start, devsecops]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      WEB
+          stage-name:       DevSecOps Defaults
+          stage-result:     ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. BUILD — tsc + vite build; produces deployable dist/ artifact
@@ -657,15 +683,60 @@ jobs:
         if: steps.smoke.outcome == 'failure'
         run: exit 1
 
+  ephemeral-validation:
+    name: Ephemeral Env Validation
+    needs: bat-tests
+    if: needs.bat-tests.outputs.gate_passed == 'true'
+    uses: ./.github/workflows/reusable-ephemeral-validation.yaml
+    with:
+      pr_id: ${{ github.event.pull_request.number || github.run_id }}
+
+  slack-ephemeral-smoke:
+    name: Slack — Ephemeral Smoke
+    runs-on: ubuntu-latest
+    needs: [notify-start, ephemeral-validation]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      WEB
+          stage-name:       Ephemeral Smoke Tests
+          stage-result:     ${{ needs.ephemeral-validation.outputs.smoke_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
+  slack-ephemeral-perf:
+    name: Slack — Ephemeral Perf
+    runs-on: ubuntu-latest
+    needs: [notify-start, ephemeral-validation]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      WEB
+          stage-name:       Ephemeral Perf Smoke
+          stage-result:     ${{ needs.ephemeral-validation.outputs.perf_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. PROMOTE LIVE — right after BAT gate passes (before Smoke)
+# 5. PROMOTE LIVE — after BAT + DevSecOps + ephemeral gates pass
 # ─────────────────────────────────────────────────────────────────────────────
   promote-live:
     name: "Promote to Live"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [notify-start, deploy-preview, bat-tests]
-    if: always() && needs.bat-tests.outputs.gate_passed == 'true' && needs.deploy-preview.result == 'success'
+    needs: [notify-start, deploy-preview, bat-tests, devsecops, ephemeral-validation]
+    if: >-
+      always() &&
+      needs.bat-tests.outputs.gate_passed == 'true' &&
+      needs.deploy-preview.result == 'success' &&
+      needs.devsecops.outputs.passed == 'true' &&
+      needs.ephemeral-validation.outputs.all_passed == 'true'
     outputs:
       live_url: ${{ steps.promote.outputs.live_url }}
 
@@ -760,10 +831,12 @@ jobs:
     timeout-minutes: 10
     needs:
       - notify-start
+      - devsecops
       - build
       - unit-tests
       - bat-tests
       - deploy-preview
+      - ephemeral-validation
       - promote-live
     if: always()
 
@@ -785,12 +858,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| DevSecOps | ${{ needs.devsecops.outputs.passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests (Vitest) | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Gate (≥80%) | ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Preview | ${{ needs.deploy-preview.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Gate | ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'passed' || 'failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ephemeral Validation | ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'passed' || needs.ephemeral-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Live Promotion | ${{ needs.promote-live.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.promote-live.result == 'success' && '🔄 In Progress (async)' || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -804,24 +879,26 @@ jobs:
         if: always()
         env:
           MODULE_NAME: WEB
-          STAGE1_NAME: Build
-          STAGE1_RESULT: ${{ needs.build.result }}
-          STAGE2_NAME: Unit Tests (Vitest)
-          # Use gate output (actual test outcome) so cosmetic step failures
-          # like Allure-publish flakes don't poison the chain rendering.
-          STAGE2_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE3_NAME: "Unit Gate (≥80%)"
+          STAGE1_NAME: DevSecOps Defaults
+          STAGE1_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
+          STAGE2_NAME: Build
+          STAGE2_RESULT: ${{ needs.build.result }}
+          STAGE3_NAME: Unit Tests (Vitest)
           STAGE3_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE4_NAME: Firebase Preview
-          STAGE4_RESULT: ${{ needs.deploy-preview.result }}
-          STAGE5_NAME: BAT Tests
-          STAGE5_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE6_NAME: BAT Gate
+          STAGE4_NAME: "Unit Gate (≥80%)"
+          STAGE4_RESULT: ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE5_NAME: Firebase Preview
+          STAGE5_RESULT: ${{ needs.deploy-preview.result }}
+          STAGE6_NAME: BAT Tests
           STAGE6_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE7_NAME: Firebase Live Promotion
-          STAGE7_RESULT: ${{ needs.promote-live.result }}
-          STAGE8_NAME: Smoke Tests
-          STAGE8_RESULT: ${{ needs.promote-live.result == 'success' && 'in-progress' || 'skipped' }}
+          STAGE7_NAME: BAT Gate
+          STAGE7_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE8_NAME: Ephemeral Validation
+          STAGE8_RESULT: ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE9_NAME: Firebase Live Promotion
+          STAGE9_RESULT: ${{ needs.promote-live.result }}
+          STAGE10_NAME: Smoke Tests
+          STAGE10_RESULT: ${{ needs.promote-live.result == 'success' && 'in-progress' || 'skipped' }}
           TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -838,11 +915,14 @@ jobs:
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           module-name:      WEB
           build-verdict: >-
-            ${{ (needs.build.result == 'success' &&
+            ${{ (needs.devsecops.outputs.passed == 'true' &&
+                 needs.build.result == 'success' &&
                  needs.unit-tests.result != 'failure' &&
                  needs.unit-tests.outputs.gate_passed == 'true' &&
                  needs.bat-tests.outputs.gate_passed == 'true' &&
-                 needs.deploy-preview.result == 'success') && 'success' || 'failure' }}
+                 needs.deploy-preview.result == 'success' &&
+                 needs.ephemeral-validation.outputs.all_passed == 'true' &&
+                 needs.promote-live.result == 'success') && 'success' || 'failure' }}
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}

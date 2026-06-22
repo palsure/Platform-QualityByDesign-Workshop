@@ -7,7 +7,8 @@ Sample apps and the full pipeline live in this repo. Teams call the platform-man
 | Workshop piece | Location |
 |----------------|----------|
 | Sample apps | [`backend-api`](../backend-api), [`web-player`](../web-player), [`android-player`](../android-player), [`ios-player`](../ios-player) |
-| Full QBD pipeline | [`.github/workflows/quality-by-design.yaml`](../.github/workflows/quality-by-design.yaml) |
+| Full QBD pipeline | [`.github/workflows/quality-by-design.yaml`](../.github/workflows/quality-by-design.yaml) — callable / manual demo |
+| Integrated gates | [`.github/workflows/streaming-app-api.yml`](../.github/workflows/streaming-app-api.yml), [`.github/workflows/streaming-app-web.yml`](../.github/workflows/streaming-app-web.yml) |
 | Reusable templates | [`.github/workflows/reusable-*.yaml`](../.github/workflows/) |
 | DevSecOps + policy | [`platform/`](../platform/) |
 | Local stack | [`docker-compose.yml`](../docker-compose.yml) |

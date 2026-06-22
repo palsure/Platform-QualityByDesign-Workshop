@@ -193,9 +193,9 @@ All workflows live in [`.github/workflows/`](.github/workflows/).
 
 | Workflow | Trigger | Module |
 |---|---|---|
-| **`quality-by-design.yaml`** | push / PR on `backend-api/**`, `web-player/**`, `platform/**` | **PlatformCon QBD workshop** — full gate chain + DevSecOps |
-| `streaming-app-api.yml` | push / PR on `backend-api/**` | Backend API |
-| `streaming-app-web.yml` | push / PR on `web-player/**` | Web Player |
+| **`quality-by-design.yaml`** | `workflow_call` / manual only | **PlatformCon QBD workshop** — callable orchestrator; gates live in API/Web pipelines |
+| `streaming-app-api.yml` | push / PR on `backend-api/**`, `platform/**` | Backend API + DevSecOps + contract + ephemeral gates |
+| `streaming-app-web.yml` | push / PR on `web-player/**`, `platform/**` | Web Player + DevSecOps + ephemeral gates |
 | `streaming-app-android.yml` | push / PR on `android-player/**` | Android Player |
 | `streaming-app-ios.yml` | push / PR on `ios-player/**` | iOS Player |
 | `streaming-app-newrelic.yml` | push / PR on monitoring config | New Relic dashboards / alerts |

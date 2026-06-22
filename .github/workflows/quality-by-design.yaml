@@ -1,50 +1,17 @@
 name: Quality by Design
 
-# PlatformCon workshop pipeline using the streaming app sample apps:
-#   backend-api + web-player (+ existing android/ios per-platform pipelines)
+# PlatformCon workshop — reusable orchestrator (callable only).
 #
-# Gate chain:
-#   unit → contract → integration (BAT) → ephemeral env → smoke → perf smoke → promote
-#   DevSecOps defaults run in parallel
+# QBD gates (DevSecOps, contract, ephemeral validation) are integrated into:
+#   - streaming-app-api.yml
+#   - streaming-app-web.yml
 #
-# Slack (optional — skipped when SLACK_BOT_TOKEN / SLACK_CHANNEL_ID not set):
-#   notify-start → per-stage thread replies → final summary + header update
+# This workflow remains for external adoption (`workflow_call`) and manual
+# workshop demos (`workflow_dispatch`). It is NOT triggered on push/PR in
+# this repo — use the app pipelines above instead.
 
 on:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'backend-api/**'
-      - 'web-player/**'
-      - 'platform/**'
-      - 'docs/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/reusable-*.yaml'
-      - '.github/workflows/quality-by-design.yaml'
-      - '.github/workflows/shared-notify-build-started.yml'
-      - '.github/actions/evaluate-jest-gate/**'
-      - '.github/actions/slack-*'
-      - '.github/scripts/slack_*.py'
-      - '.github/scripts/stage_result_to_slack.py'
-      - '.github/scripts/module_result_to_slack.py'
-      - '.github/scripts/update_build_message.py'
-  push:
-    branches: [main, develop]
-    paths:
-      - 'backend-api/**'
-      - 'web-player/**'
-      - 'platform/**'
-      - 'docs/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/reusable-*.yaml'
-      - '.github/workflows/quality-by-design.yaml'
-      - '.github/workflows/shared-notify-build-started.yml'
-      - '.github/actions/evaluate-jest-gate/**'
-      - '.github/actions/slack-*'
-      - '.github/scripts/slack_*.py'
-      - '.github/scripts/stage_result_to_slack.py'
-      - '.github/scripts/module_result_to_slack.py'
-      - '.github/scripts/update_build_message.py'
+  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -83,13 +50,11 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v4
-      - name: Notify Slack — DevSecOps result
-        if: always()
-        uses: ./.github/actions/slack-stage-notify
+      - uses: ./.github/actions/slack-stage-notify
         with:
           module-name:      QBD
           stage-name:       DevSecOps Defaults
-          stage-result:     ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
+          stage-result:     ${{ needs.devsecops.outputs.passed == 'true' && 'success' || 'failure' }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}

@@ -23,7 +23,7 @@ unit → contract → integration (BAT) → ephemeral env → smoke → perf smo
 
 | Piece | Location |
 |-------|----------|
-| Orchestrator | [`.github/workflows/quality-by-design.yaml`](../.github/workflows/quality-by-design.yaml) |
+| Orchestrator | [`.github/workflows/quality-by-design.yaml`](../.github/workflows/quality-by-design.yaml) — **callable only**; gates integrated into `streaming-app-api.yml` and `streaming-app-web.yml` |
 | Reusable templates | [`reusable-devsecops.yaml`](../.github/workflows/reusable-devsecops.yaml), [`reusable-test-gates.yaml`](../.github/workflows/reusable-test-gates.yaml), [`reusable-ephemeral-validation.yaml`](../.github/workflows/reusable-ephemeral-validation.yaml) |
 | Contract tests | `backend-api` → `./gradlew contractTest` (`ApiContractIT.java`) |
 | DevSecOps | Gitleaks · npm audit · Syft SBOM · Trivy · Conftest |

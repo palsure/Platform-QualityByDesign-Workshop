@@ -64,7 +64,7 @@ jobs:
           docker run --rm \
             -v "$PWD/platform/env:/env" \
             -v "$PWD/platform/policy:/policy" \
-            openpolicyagent/conftest:0.48.0 \
+            openpolicyagent/conftest:v0.56.0 \
             test /env/backend.yaml -p /policy
 
       - name: DevSecOps gate summary
