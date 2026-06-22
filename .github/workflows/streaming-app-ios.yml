@@ -1,3 +1,5 @@
+name: Streaming App — iOS
+
 # Streaming App — iOS
 #
 # Pipeline flow:
@@ -30,8 +32,6 @@
 #   FIREBASE_APP_ID_IOS      — Firebase App ID for App Distribution
 #   FIREBASE_TESTERS         — Comma-separated list of tester emails
 
-name: Streaming App — iOS
-
 on:
   pull_request:
     paths:
@@ -46,6 +46,8 @@ on:
     paths:
       - 'ios-player/**'
       - '.github/workflows/streaming-app-ios.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:

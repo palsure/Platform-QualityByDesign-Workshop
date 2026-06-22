@@ -1,3 +1,5 @@
+name: Streaming App — Android
+
 # Streaming App — Android
 #
 # Pipeline flow — internal release goes out as soon as the build is green
@@ -72,8 +74,6 @@
 #   LT_DEVICE_ANDROID     — Device name (default "Pixel 6 Pro-13")
 #   LT_REGION             — LT region: us | eu | in (default us)
 
-name: Streaming App — Android
-
 on:
   pull_request:
     paths:
@@ -88,6 +88,8 @@ on:
     paths:
       - 'android-player/**'
       - '.github/workflows/streaming-app-android.yml'
+      - '.github/workflows/shared-notify-build-started.yml'
+      - '.github/actions/**'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
@@ -503,8 +505,8 @@ jobs:
       inputs.skip_tests != true &&
       inputs.skip_bat   != true &&
       vars.SKIP_BAT     != 'true' &&
-      !contains(github.event.head_commit.message, '[skip-bat]') &&
-      !contains(github.event.pull_request.title, '[skip-bat]') &&
+      (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-bat]')) &&
+      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-bat]')) &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.build.result == 'success' &&
       needs.publish-internal.result == 'success'
@@ -799,8 +801,8 @@ jobs:
     if: |
       (inputs.skip_bat == true ||
        vars.SKIP_BAT == 'true' ||
-       contains(github.event.head_commit.message, '[skip-bat]') ||
-       contains(github.event.pull_request.title, '[skip-bat]')) &&
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-bat]')) ||
+       (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[skip-bat]'))) &&
       inputs.skip_tests != true &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.build.result == 'success' &&

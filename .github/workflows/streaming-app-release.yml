@@ -1,3 +1,5 @@
+name: Streaming App — Release
+
 # Per-platform acceptance jobs → aggregate pass rate → 80% quality gate → optional GitHub Release on main.
 #
 # Pass rate = sum(passed) / sum(total) across all platform-summary.json files.
@@ -6,8 +8,6 @@
 # Optional Slack notification secrets:
 #   SLACK_BOT_TOKEN   — bot OAuth token
 #   SLACK_CHANNEL_ID  — channel ID (e.g. C012AB3CD)
-
-name: Streaming App — Release
 
 # Run manually only — individual module pipelines handle per-module CI on push/PR.
 # Use this workflow for a full cross-module acceptance sweep before a release.

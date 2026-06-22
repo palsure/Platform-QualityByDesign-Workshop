@@ -1,3 +1,5 @@
+name: Streaming App — New Relic
+
 # New Relic config-as-code: validate dashboards/alerts on PRs, deploy them on main,
 # and (callable) record a deployment marker in NR APM after a successful release.
 #
@@ -19,8 +21,6 @@
 #
 # Slack (optional — skipped when SLACK_BOT_TOKEN / SLACK_CHANNEL_ID not set):
 #   notify-start → per-job thread replies → final summary
-
-name: Streaming App — New Relic
 
 on:
   push:
@@ -259,11 +259,20 @@ jobs:
   record-deployment:
     name: Record APM deployment marker
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_call' &&
-      secrets.NEW_RELIC_APM_GUID != ''
+    if: github.event_name == 'workflow_call'
     steps:
+      - name: Skip when APM GUID not configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.NEW_RELIC_APM_GUID }}" ]; then
+            echo "NEW_RELIC_APM_GUID not set — skipping deployment marker"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: New Relic deployment marker
+        if: steps.check.outputs.skip != 'true'
         uses: newrelic/deployment-marker-action@v2.5.0
         with:
           apiKey:    ${{ secrets.NEW_RELIC_USER_API_KEY }}
