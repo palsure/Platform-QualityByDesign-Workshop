@@ -53,18 +53,18 @@
     "@playwright/test": "^1.49.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "@typescript-eslint/parser": "^6.14.0",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "@vitejs/plugin-react": "^4.5.2",
     "allure-playwright": "^3.7.1",
     "allure-vitest": "^3.7.1",
     "cross-env": "^10.1.0",
-    "eslint": "^8.55.0",
+    "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "jsdom": "^24.0.0",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8",
-    "vitest": "^1.0.4"
+    "vite": "^6.4.3",
+    "vitest": "^3.2.6"
   }
 }
