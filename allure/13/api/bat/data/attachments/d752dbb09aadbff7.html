@@ -1,0 +1,33 @@
+<div>POST to http://localhost:43635/api/v1/pipeline-runs/e130f521-01b1-412c-95d6-91e488b83f0b/platforms</div>
+
+    <h4>Body</h4>
+    <div>
+    <pre class="preformated-text">
+{
+    &quot;total&quot;: 100,
+    &quot;platform&quot;: &quot;androidphone&quot;,
+    &quot;skipped&quot;: 0,
+    &quot;failed&quot;: 15,
+    &quot;passed&quot;: 85
+}    </pre>
+    </div>
+
+    <h4>Headers</h4>
+    <div>
+            <div>Accept: */*</div>
+            <div>Content-Type: application/json</div>
+    </div>
+
+
+
+    <h4>Curl</h4>
+    <div>
+        curl -v -X POST &#39;http://localhost:43635/api/v1/pipeline-runs/e130f521-01b1-412c-95d6-91e488b83f0b/platforms&#39; -H &#39;Accept: */*&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{
+    &quot;total&quot;: 100,
+    &quot;platform&quot;: &quot;androidphone&quot;,
+    &quot;skipped&quot;: 0,
+    &quot;failed&quot;: 15,
+    &quot;passed&quot;: 85
+}&#39;
+    </div>
+
