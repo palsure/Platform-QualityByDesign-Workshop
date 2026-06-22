@@ -1,0 +1,44 @@
+## Network Analysis Report
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Overall health | 🔴 **CRITICAL** |
+| Total requests | 33 |
+| Failed requests | 2 |
+| Slow requests | 0 |
+| Issues found | 3 (2 critical, 1 warnings) |
+
+### Issues Found
+
+🔴 **HIGH_SEGMENT_ERROR_RATE** — HLS segment error rate 14% exceeds 5% threshold
+   > 1 of 7 segments failed
+
+⚠️ **HLS_SEGMENT_FAILED** — HLS segment failed (network error)
+   > URL: `https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts`
+   > net::ERR_ABORTED
+
+🔴 **UNCAUGHT_PAGE_ERROR** — Uncaught JavaScript error
+   > t.addPageAction is not a function
+
+### HLS Stream Analysis
+
+| | Requests | Errors | Error Rate | Avg | P95 | Max |
+|--|----------|--------|-----------|-----|-----|-----|
+| Manifests | 3 | 0 | 0% | 76ms | 106ms | 106ms |
+| Segments  | 7 | 1 | 14% | 71ms | 254ms | 254ms |
+
+### QoE API
+
+| Metric | Value |
+|--------|-------|
+| Requests | 1 |
+| Failures | 0 |
+| Avg response | 34ms |
+| P95 response | 34ms |
+| Max response | 34ms |
+
+### Uncaught JavaScript Errors
+
+- `t.addPageAction is not a function`

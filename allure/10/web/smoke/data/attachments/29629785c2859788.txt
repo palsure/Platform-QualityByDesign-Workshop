@@ -1,0 +1,68 @@
+# Network & Console Timeline
+# Generated: 2026-06-22T00:59:21.568Z
+# Columns: [+offset_ms]  category        method  status  duration  url
+
++     51ms  other           GET     200      27ms  https://platformworkshop-6c399.web.app/   
++     77ms  app-asset       GET     200       4ms  https://platformworkshop-6c399.web.app/assets/index-ybRdccH4.css   
++    234ms  app-asset       GET     200     161ms  https://platformworkshop-6c399.web.app/assets/index-Bs8yFFCi.js   
++    318ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/   
++    340ms  app-asset       GET     200       0ms  https://platformworkshop-6c399.web.app/assets/index-Bs8yFFCi.js   
++    340ms  app-asset       GET     200       0ms  https://platformworkshop-6c399.web.app/assets/index-ybRdccH4.css   
++    451ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/images/catalog/cosmic-journey-poster.jpg   
++    451ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/images/catalog/cosmic-journey-banner.jpg   
++    451ms  other           GET     200       0ms  https://platformworkshop-6c399.web.app/images/catalog/wolf-run-poster.jpg   
++    476ms  other           GET     200      25ms  https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=480&h=270&q=80   
++    478ms  other           GET     200      27ms  https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=480&h=270&q=80   
++    480ms  other           GET     200      29ms  https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=480&h=270&q=80   
++    489ms  other           GET     200      38ms  https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=480&h=270&q=80   
++    523ms  other           GET     200      72ms  https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=480&h=270&q=80   
++    528ms  other           GET     200      77ms  https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=480&h=270&q=80   
++    528ms  other           GET     ERR      77ms  https://images.unsplash.com/photo-1415201364774-f6f0ff0a028?auto=format&fit=crop&w=480&h=270&q=80 ❌
+              └─ net::ERR_BLOCKED_BY_ORB
++    528ms  other           GET     200      77ms  https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=480&h=270&q=80   
++    530ms  other           GET     200      79ms  https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=480&h=270&q=80   
++    530ms  other           GET     200      79ms  https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=480&h=270&q=80   
++    532ms  other           GET     200      81ms  https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=480&h=270&q=80   
++    532ms  other           GET     200      81ms  https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=480&h=270&q=80   
++    532ms  other           GET     200      81ms  https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=480&h=270&q=80   
++   2626ms  hls-manifest    GET     200     229ms  https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8   
++   2728ms  hls-manifest    GET     200     102ms  https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8   
++   2862ms  hls-segment     GET     200      55ms  https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts   
++   3095ms  hls-manifest    GET     200      13ms  https://test-streams.mux.dev/x36xhzz/url_8/193039199_mp4_h264_aac_fhd_7.m3u8   
++   3156ms  hls-segment     GET     200      47ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts   
++   3179ms  hls-segment     GET     ERR       5ms  https://test-streams.mux.dev/x36xhzz/url_8/url_591/193039199_mp4_h264_aac_fhd_7.ts ❌
+              └─ net::ERR_ABORTED
++   3224ms  hls-manifest    GET     200      50ms  https://test-streams.mux.dev/x36xhzz/url_2/193039199_mp4_h264_aac_ld_7.m3u8   
++   3239ms  hls-segment     GET     200      15ms  https://test-streams.mux.dev/x36xhzz/url_2/url_526/193039199_mp4_h264_aac_ld_7.ts   
++   3301ms  hls-segment     GET     200      20ms  https://test-streams.mux.dev/x36xhzz/url_2/url_527/193039199_mp4_h264_aac_ld_7.ts   
++   3433ms  hls-segment     GET     200      70ms  https://test-streams.mux.dev/x36xhzz/url_2/url_528/193039199_mp4_h264_aac_ld_7.ts   
++   3513ms  hls-segment     GET     200      64ms  https://test-streams.mux.dev/x36xhzz/url_2/url_529/193039199_mp4_h264_aac_ld_7.ts   
++   3652ms  hls-segment     GET     200     112ms  https://test-streams.mux.dev/x36xhzz/url_2/url_530/193039199_mp4_h264_aac_ld_7.ts   
++   3888ms  hls-segment     GET     200     200ms  https://test-streams.mux.dev/x36xhzz/url_2/url_531/193039199_mp4_h264_aac_ld_7.ts   
++   4051ms  hls-segment     GET     200     118ms  https://test-streams.mux.dev/x36xhzz/url_2/url_532/193039199_mp4_h264_aac_ld_7.ts   
++   4354ms  hls-segment     GET     200     266ms  https://test-streams.mux.dev/x36xhzz/url_2/url_533/193039199_mp4_h264_aac_ld_7.ts   
++   4498ms  hls-segment     GET     200     116ms  https://test-streams.mux.dev/x36xhzz/url_2/url_534/193039199_mp4_h264_aac_ld_7.ts   
++   4638ms  hls-segment     GET     200     105ms  https://test-streams.mux.dev/x36xhzz/url_2/url_535/193039199_mp4_h264_aac_ld_7.ts   
++   4762ms  hls-segment     GET     200     103ms  https://test-streams.mux.dev/x36xhzz/url_2/url_536/193039199_mp4_h264_aac_ld_7.ts   
++   4868ms  hls-segment     GET     200      93ms  https://test-streams.mux.dev/x36xhzz/url_2/url_537/193039199_mp4_h264_aac_ld_7.ts   
++   4906ms  hls-segment     GET     200      29ms  https://test-streams.mux.dev/x36xhzz/url_2/url_538/193039199_mp4_h264_aac_ld_7.ts   
++   5043ms  hls-segment     GET     200     113ms  https://test-streams.mux.dev/x36xhzz/url_2/url_539/193039199_mp4_h264_aac_ld_7.ts   
++   5160ms  hls-segment     GET     200     108ms  https://test-streams.mux.dev/x36xhzz/url_2/url_540/193039199_mp4_h264_aac_ld_7.ts   
++   5374ms  hls-segment     GET     200     208ms  https://test-streams.mux.dev/x36xhzz/url_2/url_541/193039199_mp4_h264_aac_ld_7.ts   
++   5482ms  hls-segment     GET     200     107ms  https://test-streams.mux.dev/x36xhzz/url_2/url_542/193039199_mp4_h264_aac_ld_7.ts   
++   5615ms  hls-segment     GET     200     122ms  https://test-streams.mux.dev/x36xhzz/url_2/url_543/193039199_mp4_h264_aac_ld_7.ts   
++   5753ms  hls-segment     GET     200     128ms  https://test-streams.mux.dev/x36xhzz/url_2/url_544/193039199_mp4_h264_aac_ld_7.ts   
++   5889ms  hls-segment     GET     200     104ms  https://test-streams.mux.dev/x36xhzz/url_2/url_545/193039199_mp4_h264_aac_ld_7.ts   
++   6016ms  hls-segment     GET     200     107ms  https://test-streams.mux.dev/x36xhzz/url_2/url_546/193039199_mp4_h264_aac_ld_7.ts   
++   6149ms  hls-segment     GET     200     116ms  https://test-streams.mux.dev/x36xhzz/url_2/url_547/193039199_mp4_h264_aac_ld_7.ts   
++   6199ms  hls-segment     GET     200      34ms  https://test-streams.mux.dev/x36xhzz/url_2/url_548/193039199_mp4_h264_aac_ld_7.ts   
++   6473ms  hls-segment     GET     200     254ms  https://test-streams.mux.dev/x36xhzz/url_2/url_549/193039199_mp4_h264_aac_ld_7.ts   
++   6601ms  hls-segment     GET     200     121ms  https://test-streams.mux.dev/x36xhzz/url_2/url_550/193039199_mp4_h264_aac_ld_7.ts   
++   6644ms  hls-segment     GET     200      37ms  https://test-streams.mux.dev/x36xhzz/url_2/url_551/193039199_mp4_h264_aac_ld_7.ts   
++   6760ms  hls-segment     GET     200     107ms  https://test-streams.mux.dev/x36xhzz/url_2/url_552/193039199_mp4_h264_aac_ld_7.ts   
++   6881ms  hls-segment     GET     200     116ms  https://test-streams.mux.dev/x36xhzz/url_2/url_553/193039199_mp4_h264_aac_ld_7.ts   
++   6996ms  hls-segment     GET     200     107ms  https://test-streams.mux.dev/x36xhzz/url_2/url_554/193039199_mp4_h264_aac_ld_7.ts   
++   7032ms  hls-segment     GET     200      30ms  https://test-streams.mux.dev/x36xhzz/url_2/url_555/193039199_mp4_h264_aac_ld_7.ts   
++   7156ms  hls-segment     GET     200     117ms  https://test-streams.mux.dev/x36xhzz/url_2/url_556/193039199_mp4_h264_aac_ld_7.ts   
++   7280ms  hls-segment     GET     200       2ms  https://test-streams.mux.dev/x36xhzz/url_2/url_557/193039199_mp4_h264_aac_ld_7.ts   
++   7444ms  hls-segment     GET     200       0ms  https://test-streams.mux.dev/x36xhzz/url_2/url_558/193039199_mp4_h264_aac_ld_7.ts   
