@@ -1,0 +1,154 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","35","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns matching video","Find video returns matching video","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns matching video."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns excellent for 1 second buffering and no errors","Returns excellent for 1 second buffering and no errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns excellent for 1 second buffering and no errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","recording multiple errors increments count accordingly","Recording multiple errors increments count accordingly","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Recording multiple errors increments count accordingly."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","46","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank titles","All videos have non blank titles","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank titles."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","buffering end without start does not crash","Buffering end without start does not crash","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Buffering end without start does not crash."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","152","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","buffering time increases after start-end cycle","Buffering time increases after start end cycle","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Buffering time increases after start end cycle."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.QoEMetricPayloadTest","QoEMetricPayloadTest","com.devopsdays.qoe.player.QoEMetricPayloadTest","payload stores platform correctly","Payload stores platform correctly","**Unit** test in `QoEMetricPayloadTest`
+
+_Verifies:_ Payload stores platform correctly."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog contains at least one video","Catalog contains at least one video","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog contains at least one video."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns fair for 0 buffering with 2 errors","Returns fair for 0 buffering with 2 errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns fair for 0 buffering with 2 errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","stopCollecting can be called multiple times safely","Stop collecting can be called multiple times safely","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Stop collecting can be called multiple times safely."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.QoEMetricPayloadTest","QoEMetricPayloadTest","com.devopsdays.qoe.player.QoEMetricPayloadTest","data class equality works","Data class equality works","**Unit** test in `QoEMetricPayloadTest`
+
+_Verifies:_ Data class equality works."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog contains three videos","Catalog contains three videos","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog contains three videos."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","StreamVideo data class copy works","Stream video data class copy works","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Stream video data class copy works."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns poor for 10 seconds buffering","Returns poor for 10 seconds buffering","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns poor for 10 seconds buffering."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns good for 0 buffering with 1 error","Returns good for 0 buffering with 1 error","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns good for 0 buffering with 1 error."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:29 UTC 2026","2311","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","recording one error increments error count","Recording one error increments error count","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Recording one error increments error count."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","switching to a different bitrate increments counter","Switching to a different bitrate increments counter","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Switching to a different bitrate increments counter."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","12","","com.devopsdays.qoe.player.QoEMetricPayloadTest","QoEMetricPayloadTest","com.devopsdays.qoe.player.QoEMetricPayloadTest","payload stores videoId correctly","Payload stores video id correctly","**Unit** test in `QoEMetricPayloadTest`
+
+_Verifies:_ Payload stores video id correctly."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","202","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","duplicate recordBufferingStart calls do not reset start time","Duplicate record buffering start calls do not reset start time","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Duplicate record buffering start calls do not reset start time."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns poor for 0 buffering with 5 errors","Returns poor for 0 buffering with 5 errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns poor for 0 buffering with 5 errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","initial total buffering time is zero","Initial total buffering time is zero","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Initial total buffering time is zero."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","3","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog video ids are unique","Catalog video ids are unique","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog video ids are unique."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns fair just below 10 second threshold","Returns fair just below 10 second threshold","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns fair just below 10 second threshold."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.QoEMetricPayloadTest","QoEMetricPayloadTest","com.devopsdays.qoe.player.QoEMetricPayloadTest","payload stores metrics map correctly","Payload stores metrics map correctly","**Unit** test in `QoEMetricPayloadTest`
+
+_Verifies:_ Payload stores metrics map correctly."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all HLS URLs start with https","All HLS UR ls start with HTTPS","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All HLS UR ls start with HTTPS."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","each collector gets a unique session id","Each collector gets a unique session id","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Each collector gets a unique session id."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","10","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns excellent just below 2 second threshold","Returns excellent just below 2 second threshold","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns excellent just below 2 second threshold."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns good for 3 seconds buffering with 1 error","Returns good for 3 seconds buffering with 1 error","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns good for 3 seconds buffering with 1 error."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","initial bitrate switches count is zero","Initial bitrate switches count is zero","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Initial bitrate switches count is zero."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","3","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","stopCollecting without startCollecting does not throw","Stop collecting without start collecting does not throw","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Stop collecting without start collecting does not throw."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","error count takes precedence over buffering when determining poor","Error count takes precedence over buffering when determining poor","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Error count takes precedence over buffering when determining poor."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns good just below 5 second threshold","Returns good just below 5 second threshold","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns good just below 5 second threshold."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank HLS URLs","All videos have non blank HLS UR ls","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank HLS UR ls."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","negative buffering time treated as excellent","Negative buffering time treated as excellent","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Negative buffering time treated as excellent."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.QoEMetricPayloadTest","QoEMetricPayloadTest","com.devopsdays.qoe.player.QoEMetricPayloadTest","device info map is preserved","Device info map is preserved","**Unit** test in `QoEMetricPayloadTest`
+
+_Verifies:_ Device info map is preserved."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns fair for 5 seconds buffering","Returns fair for 5 seconds buffering","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns fair for 5 seconds buffering."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns good for 2 seconds buffering and no errors","Returns good for 2 seconds buffering and no errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns good for 2 seconds buffering and no errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank ids","All videos have non blank ids","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank ids."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","session id starts with android prefix","Session id starts with android prefix","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Session id starts with android prefix."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","multiple distinct bitrate changes are counted individually","Multiple distinct bitrate changes are counted individually","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Multiple distinct bitrate changes are counted individually."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns correct video for each catalog entry","Find video returns correct video for each catalog entry","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns correct video for each catalog entry."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns excellent for zero buffering and no errors","Returns excellent for zero buffering and no errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns excellent for zero buffering and no errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","initial error count is zero","Initial error count is zero","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Initial error count is zero."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","2","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","first bitrate change does not increment switch counter","First bitrate change does not increment switch counter","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ First bitrate change does not increment switch counter."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all HLS URLs point to m3u8 playlists","All HLS UR ls point to m3u8 playlists","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All HLS UR ls point to m3u8 playlists."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns null for unknown id","Find video returns null for unknown id","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns null for unknown id."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns fair for 7 seconds buffering with 3 errors","Returns fair for 7 seconds buffering with 3 errors","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns fair for 7 seconds buffering with 3 errors."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","202","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","multiple buffering cycles accumulate time","Multiple buffering cycles accumulate time","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Multiple buffering cycles accumulate time."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","1","","com.devopsdays.qoe.player.services.QoECollectorTest","QoECollectorTest","com.devopsdays.qoe.player.services.QoECollectorTest","same bitrate repeated does not increment counter","Same bitrate repeated does not increment counter","**Unit** test in `QoECollectorTest`
+
+_Verifies:_ Same bitrate repeated does not increment counter."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","6","","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","QoEQualityCalculatorTest","com.devopsdays.qoe.player.utils.QoEQualityCalculatorTest","returns poor for very high buffering time","Returns poor for very high buffering time","**Unit** test in `QoEQualityCalculatorTest`
+
+_Verifies:_ Returns poor for very high buffering time."
+"passed","Tue Jun 23 06:39:27 UTC 2026","Tue Jun 23 06:39:27 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","baseline video has expected HLS URL","Baseline video has expected HLS URL","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Baseline video has expected HLS URL."
