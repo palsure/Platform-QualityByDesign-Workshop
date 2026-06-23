@@ -83,6 +83,7 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/firebase_app_distribution.sh'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
   push:
@@ -94,6 +95,7 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/firebase_app_distribution.sh'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
   schedule:
@@ -1178,7 +1180,7 @@ jobs:
         #   1. Email list from vars.FIREBASE_INTERNAL_TESTERS
         #   2. Email list from secrets.FIREBASE_INTERNAL_TESTERS
         #   3. Group list from vars.FIREBASE_INTERNAL_GROUPS
-        #   4. Default group name 'internal-testers'
+        #   4. No targets — upload release only (no tester notification)
         env:
           VAR_TESTERS:    ${{ vars.FIREBASE_INTERNAL_TESTERS }}
           SECRET_TESTERS: ${{ secrets.FIREBASE_INTERNAL_TESTERS }}
@@ -1191,28 +1193,54 @@ jobs:
             echo "groups=" >> "$GITHUB_OUTPUT"
             echo "Using testers email list (count: $(echo "$TESTERS" | tr ',' '\n' | wc -l | tr -d ' '))"
           else
-            GROUPS="${VAR_GROUPS:-internal-testers}"
+            GROUPS="${VAR_GROUPS:-}"
             echo "groups=$GROUPS" >> "$GITHUB_OUTPUT"
             echo "testers=" >> "$GITHUB_OUTPUT"
-            echo "Using groups: $GROUPS"
+            if [ -n "$GROUPS" ]; then
+              echo "Using groups: $GROUPS"
+            else
+              echo "No testers or groups configured — release will upload without notifications."
+            fi
           fi
+
+      - name: Install Firebase CLI
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
+        run: npm install -g firebase-tools
+
+      - name: Locate debug APK
+        id: apk
+        run: |
+          set -euo pipefail
+          APK=$(find apk-artifacts -type f -name 'app-debug.apk' ! -path '*androidTest*' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "::error::app-debug.apk not found under apk-artifacts/"
+            find apk-artifacts -type f 2>/dev/null || true
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "Found APK: $APK ($(du -h "$APK" | cut -f1))"
 
       - name: Publish to Firebase App Distribution (internal)
         id: firebase-publish
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ env.FIREBASE_APP_ID_ANDROID }}
-          token: ${{ env.FIREBASE_TOKEN }}
-          groups:  ${{ steps.targets.outputs.groups }}
-          testers: ${{ steps.targets.outputs.testers }}
-          file: apk-artifacts/debug/app-debug.apk
-          releaseNotes: |
-            Internal canary — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}
-            Commit: ${{ github.sha }}
-            BAT will validate this build before promotion to the public channel.
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          GROUPS='${{ steps.targets.outputs.groups }}'
+          TESTERS='${{ steps.targets.outputs.testers }}'
+          if [ -n "$TESTERS" ]; then
+            ARGS+=(--testers "$TESTERS")
+          elif [ -n "$GROUPS" ]; then
+            ARGS+=(--groups "$GROUPS")
+          fi
+          NOTES="Internal canary — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }} | Commit: ${{ github.sha }} | BAT validates before public promotion."
+          bash .github/scripts/firebase_app_distribution.sh \
+            "${{ steps.apk.outputs.path }}" \
+            "${{ env.FIREBASE_APP_ID_ANDROID }}" \
+            "$NOTES" \
+            "${ARGS[@]}"
 
       - name: Calculate publish duration
         if: always()
@@ -1256,7 +1284,11 @@ jobs:
             echo "passed=true" >> "$GITHUB_OUTPUT"
           else
             echo "passed=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Firebase internal distribution did not complete (outcome=$OUT). Set FIREBASE_TOKEN (secret) and FIREBASE_APP_ID_ANDROID (variable or secret) — see docs/FIREBASE-SETUP.md"
+            if [ "$OUT" = "skipped" ]; then
+              echo "::error::Firebase internal distribution was skipped. Set FIREBASE_TOKEN (secret) and FIREBASE_APP_ID_ANDROID (variable or secret) — see docs/FIREBASE-SETUP.md"
+            else
+              echo "::error::Firebase internal distribution failed (outcome=$OUT). Check the publish step log above — common causes: expired FIREBASE_TOKEN, wrong App ID, missing tester group alias, or APK/package mismatch. See docs/FIREBASE-SETUP.md"
+            fi
             exit 1
           fi
 
@@ -1304,7 +1336,7 @@ jobs:
         #   2. Email list from secrets.FIREBASE_PUBLIC_TESTERS
         #   3. Group list from vars.FIREBASE_PUBLIC_GROUPS
         #   4. Group list from secrets.FIREBASE_TESTERS  (legacy name)
-        #   5. Default group name 'external-testers'
+        #   5. No targets — upload release only
         env:
           VAR_TESTERS:        ${{ vars.FIREBASE_PUBLIC_TESTERS }}
           SECRET_TESTERS:     ${{ secrets.FIREBASE_PUBLIC_TESTERS }}
@@ -1318,28 +1350,54 @@ jobs:
             echo "groups=" >> "$GITHUB_OUTPUT"
             echo "Using testers email list (count: $(echo "$TESTERS" | tr ',' '\n' | wc -l | tr -d ' '))"
           else
-            GROUPS="${VAR_GROUPS:-${LEGACY_GROUP_LIST:-external-testers}}"
+            GROUPS="${VAR_GROUPS:-${LEGACY_GROUP_LIST:-}}"
             echo "groups=$GROUPS" >> "$GITHUB_OUTPUT"
             echo "testers=" >> "$GITHUB_OUTPUT"
-            echo "Using groups: $GROUPS"
+            if [ -n "$GROUPS" ]; then
+              echo "Using groups: $GROUPS"
+            else
+              echo "No testers or groups configured — release will upload without notifications."
+            fi
           fi
+
+      - name: Install Firebase CLI
+        if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
+        run: npm install -g firebase-tools
+
+      - name: Locate debug APK
+        id: apk-pub
+        run: |
+          set -euo pipefail
+          APK=$(find apk-artifacts -type f -name 'app-debug.apk' ! -path '*androidTest*' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "::error::app-debug.apk not found under apk-artifacts/"
+            find apk-artifacts -type f 2>/dev/null || true
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "Found APK: $APK ($(du -h "$APK" | cut -f1))"
 
       - name: Publish to Firebase App Distribution (testers)
         id: firebase-publish-pub
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_ANDROID != ''
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ env.FIREBASE_APP_ID_ANDROID }}
-          token: ${{ env.FIREBASE_TOKEN }}
-          groups:  ${{ steps.targets-pub.outputs.groups }}
-          testers: ${{ steps.targets-pub.outputs.testers }}
-          file: apk-artifacts/debug/app-debug.apk
-          releaseNotes: |
-            Public release — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }}
-            Environment: ${{ env.ENV_LABEL }}
-            Promoted from internal channel after BAT validation passed.
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          GROUPS='${{ steps.targets-pub.outputs.groups }}'
+          TESTERS='${{ steps.targets-pub.outputs.testers }}'
+          if [ -n "$TESTERS" ]; then
+            ARGS+=(--testers "$TESTERS")
+          elif [ -n "$GROUPS" ]; then
+            ARGS+=(--groups "$GROUPS")
+          fi
+          NOTES="Public release — Build #${{ github.run_number }} — ${{ github.head_ref || github.ref_name }} | Environment: ${{ env.ENV_LABEL }} | Promoted after BAT passed."
+          bash .github/scripts/firebase_app_distribution.sh \
+            "${{ steps.apk-pub.outputs.path }}" \
+            "${{ env.FIREBASE_APP_ID_ANDROID }}" \
+            "$NOTES" \
+            "${ARGS[@]}"
 
       - name: Calculate publish duration
         if: always()

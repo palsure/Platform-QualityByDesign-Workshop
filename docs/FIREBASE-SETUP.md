@@ -100,10 +100,12 @@ Hosting serves `dist/` with SPA rewrites. No changes needed unless you change th
 ### Firebase Console
 
 1. Register the Android app with package name **`com.platform.android`** (must match `applicationId` in `android-player/app/build.gradle.kts`).
-2. **App Distribution → Testers & Groups** → create groups:
-   - `internal-testers` — canary builds (default)
+2. **App Distribution → Testers & Groups** → create groups (use the **alias**, not the display name):
+   - `internal-testers` — canary builds (set `FIREBASE_INTERNAL_GROUPS=internal-testers`, or use `FIREBASE_INTERNAL_TESTERS` emails instead)
    - `external-testers` or custom — public promotion (optional)
-3. Add tester emails to each group.
+3. Add tester emails to each group, **or** set `FIREBASE_INTERNAL_TESTERS` / `FIREBASE_PUBLIC_TESTERS` with comma-separated emails in GitHub Variables.
+
+If neither emails nor groups are configured, the pipeline still uploads the APK to App Distribution but does not notify anyone.
 
 Update `android-player/firebase.json` with your App ID if deploying locally:
 
