@@ -64,6 +64,18 @@ jobs:
           docker compose logs backend
           exit 1
 
+      - name: Wait for web player
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/ | grep -qi 'streamapp\|root'; then
+              echo "✅ Web player healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs web-player
+          exit 1
+
       - name: Run smoke tests
         id: smoke
         env:

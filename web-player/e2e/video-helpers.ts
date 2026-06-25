@@ -6,19 +6,17 @@ import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { allure } from 'allure-playwright';
 
-const FEATURED_TILE = 'Play Cosmic Journey';
+const DEFAULT_TILE_TEST_ID = 'tile-cosmic-journey';
 
 export async function selectVideoAndPlay(
   page: Page,
-  tileLabel: string = FEATURED_TILE,
+  tileTestId: string = DEFAULT_TILE_TEST_ID,
 ): Promise<void> {
   await page.goto('/');
   await page.waitForLoadState('domcontentloaded');
 
-  const videoTitle = tileLabel.replace(/^Play\s+/, '');
-
-  await allure.step(`Select tile: "${videoTitle}"`, async () => {
-    const tile = page.getByRole('button', { name: tileLabel });
+  await allure.step(`Select tile: ${tileTestId}`, async () => {
+    const tile = page.getByTestId(tileTestId);
     await tile.scrollIntoViewIfNeeded();
     await tile.click();
   });

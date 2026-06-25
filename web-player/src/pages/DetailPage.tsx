@@ -86,7 +86,7 @@ export function DetailPage({ video, onBack, autoPlay = false }: DetailPageProps)
             ))}
           </div>
 
-          <h1 className="detail-title">{video.title}</h1>
+          <h1 className="detail-title" data-testid="detail-title">{video.title}</h1>
           <p className="detail-description">{video.longDescription}</p>
 
           <div className="detail-meta">

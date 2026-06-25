@@ -121,7 +121,7 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 | `vars.RUN_SMOKE_TESTS_ANDROID=false` | Skip Android Smoke E2E; pipeline continues to report |
 | `vars.RUN_SMOKE_TESTS_IOS=false` | Skip iOS Smoke E2E; Firebase publish still proceeds when BAT passes |
 | `vars.SKIP_BAT=true` *or* `[skip-bat]` in commit/PR title | Skip BAT entirely for one run; Firebase publishes on the Unit gate alone |
-| `vars.NO_DEVICE_LAB=true` | Persistent override — BAT reports `SKIPPED` (not `FAILED`) so Slack stays green |
+| `vars.NO_DEVICE_LAB=true` | Persistent override — BAT reports `skipped` (not `failed`); public Firebase + Smoke still run on the Unit gate |
 | `inputs.skip_tests=true` | Hotfix mode — bypass every gate, ship straight to public |
 
 ## Modules

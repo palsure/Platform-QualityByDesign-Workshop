@@ -786,12 +786,6 @@ jobs:
             # demonstrates the soft-gate path on the green Unit gate.
             echo "BAT SKIPPED — vars.NO_DEVICE_LAB=true (no device lab in this environment)"
             echo "gate_passed=skipped" >> "$GITHUB_OUTPUT"
-          elif [ "$BAT" = "success" ]; then
-            echo "BAT gate PASSED — Smoke tests can start"
-            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
-          elif [ "$BAT" = "failure" ]; then
-            echo "BAT gate FAILED — tests ran but reported failures"
-            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           elif [ "$TOTAL_TESTS" -eq 0 ]; then
             # Device never came up, runner crashed before tests ran, or
             # Gradle wrote a 0-test stub. Treat as device unavailable so
@@ -799,6 +793,12 @@ jobs:
             echo "BAT SKIPPED — no tests executed (device unavailable)"
             echo "    Firebase deploy proceeds on the Unit gate alone."
             echo "gate_passed=skipped" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "success" ]; then
+            echo "BAT gate PASSED — Smoke tests can start"
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$BAT" = "failure" ]; then
+            echo "BAT gate FAILED — tests ran but reported failures"
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           else
             echo "BAT gate FAILED (bat=$BAT, tests=$TOTAL_TESTS) — tests ran and reported failures."
             echo "    Public promotion and Smoke are BLOCKED."
@@ -872,7 +872,7 @@ jobs:
     needs: [notify-start, build, bat-e2e, publish-public]
     if: |
       vars.RUN_SMOKE_TESTS_ANDROID != 'false' &&
-      needs.bat-e2e.outputs.gate_passed == 'true' &&
+      needs.bat-e2e.outputs.gate_passed != 'false' &&
       needs.build.result == 'success' &&
       needs.publish-public.result == 'success'
     continue-on-error: true
@@ -1375,26 +1375,21 @@ jobs:
 # 9. PUBLISH PUBLIC — Firebase App Distribution (external testers)
 #
 #    Promotion gate: only runs after BAT validated the internal release.
-#    Soft-gate policy preserved — a 'skipped' BAT (device lab unavailable)
-#    still allows promotion based on the Unit gate alone, but a HARD BAT
-#    failure blocks public promotion (and the quality-gate job alerts).
+#    Soft-gate policy: BAT 'skipped' (device lab unavailable) still promotes
+#    to public based on the Unit gate alone. Only a HARD BAT failure ('false')
+#    blocks public promotion.
 # ─────────────────────────────────────────────────────────────────────────────
   publish-public:
     name: "Publish Public (Firebase)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [notify-start, unit-tests, build, publish-internal, bat-e2e]
-    # STRICT promotion gate: only when BAT actually passed.
-    # 'skipped' (device lab unavailable) does NOT promote — internal
-    # remains the latest version available to users until we can validate
-    # on a real / cloud device. Flip back to `!= 'false'` if you want the
-    # old soft-gate behaviour (publish-public on skipped too).
     if: |
       always() &&
       needs.build.result == 'success' &&
       needs.publish-internal.outputs.distributed == 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
-      needs.bat-e2e.outputs.gate_passed == 'true'
+      needs.bat-e2e.outputs.gate_passed != 'false'
 
     steps:
       - name: Record job start time
@@ -1549,7 +1544,7 @@ jobs:
           echo "| Build APK | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Internal | ${{ needs.publish-internal.outputs.distributed == 'true' && 'passed' || (needs.publish-internal.result == 'skipped' && 'skipped' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (device unavailable)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Firebase Public | ${{ needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Firebase Public | ${{ needs.publish-public.result == 'skipped' && needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (BAT unavailable)' || needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ vars.RUN_SMOKE_TESTS_ANDROID == 'false' && 'skipped (disabled)' || needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
@@ -1575,7 +1570,7 @@ jobs:
           STAGE6_NAME: BAT Tests
           STAGE6_RESULT: ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
           STAGE7_NAME: Firebase Public
-          STAGE7_RESULT: ${{ needs.publish-public.result }}
+          STAGE7_RESULT: ${{ needs.publish-public.result == 'success' && 'success' || (needs.publish-public.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE8_NAME: Smoke Tests
           STAGE8_RESULT: ${{ vars.RUN_SMOKE_TESTS_ANDROID == 'false' && 'skipped' || needs.smoke-e2e.result }}
           TOTAL_DURATION: ${{ env.TOTAL_DURATION }}

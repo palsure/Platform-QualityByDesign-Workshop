@@ -16,8 +16,10 @@ export default function () {
   const health = http.get(`${API_BASE}/actuator/health`);
   check(health, { 'health UP': (r) => r.status === 200 && r.body.includes('UP') });
 
-  const platforms = http.get(`${API_BASE}/api/v1/platforms`);
-  check(platforms, { 'platforms 200': (r) => r.status === 200 });
+  const videos = http.get(`${API_BASE}/api/v1/videos`);
+  check(videos, {
+    'videos 200': (r) => r.status === 200 && r.body.includes('"hlsManifestUrl"'),
+  });
 
   sleep(0.2);
 }
