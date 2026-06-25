@@ -651,7 +651,7 @@ jobs:
         run: exit 1
 
   ephemeral-validation:
-    name: Ephemeral Env Validation
+    name: Full-Stack Smoke + Perf
     needs: [notify-start, bat-tests]
     if: needs.bat-tests.outputs.gate_passed == 'true'
     uses: ./.github/workflows/reusable-ephemeral-validation.yaml
@@ -662,6 +662,7 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. PROMOTE LIVE — after BAT + DevSecOps + ephemeral gates pass
@@ -772,7 +773,7 @@ jobs:
           echo "| Unit Tests (Vitest) | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Preview | ${{ needs.deploy-preview.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Ephemeral Validation | ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'passed' || needs.ephemeral-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Full-Stack Smoke + Perf | ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'passed' || needs.ephemeral-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Live Promotion | ${{ needs.promote-live.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.promote-live.result == 'success' && '🔄 In Progress (async)' || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -796,7 +797,7 @@ jobs:
           STAGE4_RESULT: ${{ needs.deploy-preview.result }}
           STAGE5_NAME: BAT Tests
           STAGE5_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE6_NAME: Ephemeral Validation
+          STAGE6_NAME: Full-Stack Smoke + Perf
           STAGE6_RESULT: ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE7_NAME: Firebase Live Promotion
           STAGE7_RESULT: ${{ needs.promote-live.result }}

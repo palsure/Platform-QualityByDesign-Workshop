@@ -102,7 +102,7 @@ jobs:
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
   ephemeral-validation:
-    name: Ephemeral Env Validation
+    name: Full-Stack Smoke + Perf
     needs: [notify-start, test-gates]
     if: needs.test-gates.outputs.all_passed == 'true'
     uses: ./.github/workflows/reusable-ephemeral-validation.yaml
@@ -113,6 +113,7 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
   promote:
     name: Promotion Gate
@@ -183,7 +184,7 @@ jobs:
           STAGE4_RESULT:      ${{ needs.test-gates.outputs.contract_passed != 'true' && 'skipped' || (needs.test-gates.outputs.integration_passed == 'true' && 'success' || 'failure') }}
           STAGE5_NAME:        Web Player Unit Tests
           STAGE5_RESULT:      ${{ needs.web-unit.result }}
-          STAGE6_NAME:        Ephemeral Validation
+          STAGE6_NAME:        Full-Stack Smoke + Perf
           STAGE6_RESULT:      ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE7_NAME:        Promotion Gate
           STAGE7_RESULT:      ${{ needs.promote.outputs.passed == 'true' && 'success' || 'failure' }}

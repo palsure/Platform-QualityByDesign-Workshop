@@ -619,7 +619,7 @@ jobs:
 # 3b. EPHEMERAL VALIDATION — full-stack smoke + k6 perf (QBD gate)
 # ─────────────────────────────────────────────────────────────────────────────
   ephemeral-validation:
-    name: Ephemeral Env Validation
+    name: Full-Stack Smoke + Perf
     needs: [notify-start, bat-tests]
     if: needs.bat-tests.outputs.gate_passed == 'true'
     uses: ./.github/workflows/reusable-ephemeral-validation.yaml
@@ -630,6 +630,7 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. PROMOTE LIVE — production-ready after BAT + DevSecOps + ephemeral gates
@@ -757,7 +758,7 @@ jobs:
           STAGE4_RESULT: ${{ needs.build-and-verify.result }}
           STAGE5_NAME: BAT
           STAGE5_RESULT: ${{ needs.bat-tests.outputs.gate_passed == 'true' && 'success' || (needs.bat-tests.result == 'skipped' && 'skipped' || 'failure') }}
-          STAGE6_NAME: Ephemeral Validation
+          STAGE6_NAME: Full-Stack Smoke + Perf
           STAGE6_RESULT: ${{ needs.ephemeral-validation.outputs.all_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
           STAGE7_NAME: API Live Promotion
           STAGE7_RESULT: ${{ needs.promote-live.result }}

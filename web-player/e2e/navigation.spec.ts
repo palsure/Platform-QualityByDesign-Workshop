@@ -39,7 +39,7 @@ test.describe('Navigation @Smoke', () => {
   test('Movies tab shows browse rows with playable tiles', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Movies' }).click();
-    await expect(page.getByRole('heading', { name: 'Movies' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
     const firstTile = page.getByRole('button', { name: /^Play / }).first();
     await firstTile.scrollIntoViewIfNeeded();
     await expect(firstTile).toBeVisible();

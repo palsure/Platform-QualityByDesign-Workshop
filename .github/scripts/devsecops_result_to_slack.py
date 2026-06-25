@@ -2,6 +2,9 @@
 """
 Build a Slack Block Kit payload for DevSecOps scan results.
 
+Only lists checks that apply to the active pipeline module (API, WEB,
+ANDROID, iOS, or QBD for the full cross-module gate).
+
 Required env vars:
   MODULE_NAME, THREAD_TS, SLACK_CHANNEL_ID (optional)
   GATE_PASSED — true | false
@@ -15,6 +18,7 @@ import json
 import os
 from pathlib import Path
 
+from devsecops_checks import applicable_checks, gate_passed, normalize_module
 from slack_utils import normalize_channel_id
 
 
@@ -37,25 +41,25 @@ def outcome_label(outcome: str) -> str:
 
 
 def main() -> int:
-    module = os.environ.get("MODULE_NAME", "MODULE")
-    gate_passed = os.environ.get("GATE_PASSED", "false").lower() == "true"
-    verdict = "PASSED" if gate_passed else "FAILED"
-    icon = ":large_green_circle:" if gate_passed else ":red_circle:"
+    module = normalize_module(os.environ.get("MODULE_NAME", "MODULE"))
+    all_outcomes = {
+        check.key: os.environ.get(check.key, "skipped")
+        for check in applicable_checks(module)
+    }
+    passed = os.environ.get("GATE_PASSED", "").lower() == "true"
+    if os.environ.get("GATE_PASSED", "") == "":
+        passed = gate_passed(module, all_outcomes)
 
-    checks = [
-        ("Gitleaks", "secrets scan", os.environ.get("GITLEAKS", "skipped")),
-        ("npm audit", "web-player dependencies", os.environ.get("NPM_AUDIT", "skipped")),
-        ("Trivy", "backend-api filesystem (CRITICAL/HIGH)", os.environ.get("TRIVY", "skipped")),
-        ("Conftest", "platform policy (backend.yaml)", os.environ.get("CONFTEST", "skipped")),
-        ("SBOM — backend-api", "Syft SPDX", os.environ.get("SBOM_API", "skipped")),
-        ("SBOM — web-player", "Syft SPDX", os.environ.get("SBOM_WEB", "skipped")),
-    ]
+    verdict = "PASSED" if passed else "FAILED"
+    icon = ":large_green_circle:" if passed else ":red_circle:"
 
     lines = [
-        f"{outcome_icon(outcome)}  *{name}* ({desc}) — *{outcome_label(outcome)}*"
-        for name, desc, outcome in checks
+        f"{outcome_icon(all_outcomes.get(check.key, 'skipped'))}  "
+        f"*{check.name}* ({check.description}) — "
+        f"*{outcome_label(all_outcomes.get(check.key, 'skipped'))}*"
+        for check in applicable_checks(module)
     ]
-    stats_text = "\n".join(lines)
+    stats_text = "\n".join(lines) if lines else "_No module-specific security checks configured._"
 
     repo = os.environ.get("GITHUB_REPOSITORY", "repo")
     run_id = os.environ.get("GITHUB_RUN_ID", "")

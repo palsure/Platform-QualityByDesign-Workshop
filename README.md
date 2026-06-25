@@ -198,7 +198,7 @@ All workflows live in [`.github/workflows/`](.github/workflows/).
 | `streaming-app-web.yml` | push / PR on `web-player/**`, `platform/**` | Web Player + DevSecOps + ephemeral gates |
 | `streaming-app-android.yml` | push / PR on `android-player/**` | Android Player |
 | `streaming-app-ios.yml` | push / PR on `ios-player/**` | iOS Player |
-| `streaming-app-newrelic.yml` | push / PR on monitoring config | New Relic dashboards / alerts |
+| `streaming-app-newrelic.yml` | push / PR on monitoring config | New Relic dashboards / alerts **(optional workshop add-on)** |
 | `streaming-app-release.yml` | manual | All modules — acceptance + release |
 | `shared-notify-build-started.yml` | `workflow_call` | Reusable "build started" Slack notify |
 | `reusable-devsecops.yaml` | `workflow_call` | Gitleaks · npm audit · SBOM · Trivy · Conftest |

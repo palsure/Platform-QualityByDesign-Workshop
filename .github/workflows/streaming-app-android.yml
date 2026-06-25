@@ -83,6 +83,8 @@ on:
       - '.github/scripts/firebase_app_distribution.sh'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
+      - '.github/scripts/devsecops_checks.py'
+      - '.github/scripts/devsecops_gate_summary.py'
   push:
     branches: [main, develop]
     paths:
@@ -95,6 +97,8 @@ on:
       - '.github/scripts/firebase_app_distribution.sh'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
+      - '.github/scripts/devsecops_checks.py'
+      - '.github/scripts/devsecops_gate_summary.py'
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
@@ -722,20 +726,6 @@ jobs:
           allure-tag:         "BAT"
           allure-language:    "kotlin"
 
-      - name: Notify Slack — BAT result
-        if: always()
-        uses: ./.github/actions/slack-stage-notify
-        with:
-          module-name:     ANDROID
-          stage-name:      "BAT (Build Acceptance Tests)${{ vars.USE_FIREBASE_TEST_LAB == 'true' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
-          stage-result:    ${{ vars.USE_FIREBASE_TEST_LAB == 'true' && (steps.bat-ftl.outputs.exit_code == '2' && steps.bat-emu.outcome || steps.bat-ftl.outcome) || (vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome) }}
-          duration:        ${{ env.BAT_DURATION }}
-          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/bat
-          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
-          junit-dir:       android-player/app/build/outputs/androidTest-results/connected
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
       - name: Evaluate BAT quality gate (inline)
         id: bat-gate
         if: always()
@@ -804,6 +794,20 @@ jobs:
             echo "    Public promotion and Smoke are BLOCKED."
             echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Notify Slack — BAT result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:     ANDROID
+          stage-name:      "BAT (Build Acceptance Tests)${{ vars.USE_FIREBASE_TEST_LAB == 'true' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
+          stage-result:    ${{ steps.bat-gate.outputs.gate_passed == 'skipped' && 'skipped' || (steps.bat-gate.outputs.gate_passed == 'true' && 'success' || 'failure') }}
+          duration:        ${{ env.BAT_DURATION }}
+          report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/bat
+          thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:       android-player/app/build/outputs/androidTest-results/connected
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4b. BAT SKIP NOTICE — pre-flight skip when the device lab is unavailable
@@ -1349,7 +1353,7 @@ jobs:
             ${{ env.FIREBASE_PROJECT_ID != ''
                 && format('https://console.firebase.google.com/project/{0}/appdistribution', env.FIREBASE_PROJECT_ID)
                 || '' }}
-          link-label:      ":mobile_phone: View on Firebase"
+          link-label:      "View app on Firebase"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
@@ -1496,7 +1500,7 @@ jobs:
             ${{ env.FIREBASE_PROJECT_ID != ''
                 && format('https://console.firebase.google.com/project/{0}/appdistribution', env.FIREBASE_PROJECT_ID)
                 || '' }}
-          link-label:      ":mobile_phone: View on Firebase"
+          link-label:      "View app on Firebase"
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}

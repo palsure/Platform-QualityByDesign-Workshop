@@ -1,0 +1,101 @@
+name: 'Static Report — Publish to GitHub Pages'
+description: >
+  Copy a pre-built HTML folder to a sub-path on the gh-pages branch.
+  Uses the same retry/jitter push logic as publish-allure.
+
+inputs:
+  source-dir:
+    description: 'Directory containing index.html (and optional assets)'
+    required: true
+  pages-destination:
+    description: 'Destination sub-path on GitHub Pages (e.g. reports/42/api/ephemeral)'
+    required: true
+  github-token:
+    description: 'GitHub token used to push the gh-pages branch'
+    required: true
+
+outputs:
+  report_url:
+    description: 'Published report URL when deploy succeeds'
+    value: ${{ steps.deploy.outputs.report_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy static report to gh-pages (with retry & jitter)
+      id: deploy
+      shell: bash
+      env:
+        GH_TOKEN:      ${{ inputs.github-token }}
+        REPO:          ${{ github.repository }}
+        TARGET_FOLDER: ${{ inputs.pages-destination }}
+        SRC_FOLDER:    ${{ inputs.source-dir }}
+        RUN_NUMBER:    ${{ github.run_number }}
+      run: |
+        set -uo pipefail
+
+        REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+        WORK_DIR="${RUNNER_TEMP}/gh-pages-static-deploy"
+        SRC_ABS="${GITHUB_WORKSPACE}/${SRC_FOLDER}"
+
+        if [ ! -d "$SRC_ABS" ]; then
+          echo "❌ Source folder not found: $SRC_ABS"
+          exit 1
+        fi
+
+        git config --global user.name  "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        MAX_ATTEMPTS=6
+        SUCCESS=0
+
+        for attempt in $(seq 1 $MAX_ATTEMPTS); do
+          if [ $attempt -gt 1 ]; then
+            BASE=$(( 5 * (1 << (attempt - 2)) ))
+            JITTER=$(( RANDOM % 16 ))
+            SLEEP_S=$(( BASE + JITTER ))
+            echo "::group::Retry ${attempt}/${MAX_ATTEMPTS} — backing off ${SLEEP_S}s"
+            sleep $SLEEP_S
+            echo "::endgroup::"
+          fi
+
+          rm -rf "$WORK_DIR"
+
+          if git clone --depth 1 --branch gh-pages --quiet "$REPO_URL" "$WORK_DIR" 2>/dev/null; then
+            echo "Cloned gh-pages (attempt ${attempt})"
+          else
+            echo "gh-pages missing — creating branch"
+            mkdir -p "$WORK_DIR"
+            ( cd "$WORK_DIR" && git init -q -b gh-pages && git remote add origin "$REPO_URL" )
+          fi
+
+          cd "$WORK_DIR"
+          touch .nojekyll
+          mkdir -p "$TARGET_FOLDER"
+          rm -rf "${TARGET_FOLDER:?}/"* "${TARGET_FOLDER:?}/".[!.]* 2>/dev/null || true
+          cp -R "$SRC_ABS/." "$TARGET_FOLDER/"
+
+          git add "$TARGET_FOLDER" .nojekyll
+          if git diff --cached --quiet; then
+            echo "No changes to push"
+            SUCCESS=1
+            break
+          fi
+
+          git commit -q -m "Report: ${TARGET_FOLDER} (build #${RUN_NUMBER}, attempt ${attempt}) [skip ci]"
+
+          if git push --quiet origin gh-pages 2>&1; then
+            OWNER="$(echo "$REPO" | cut -d/ -f1)"
+            NAME="$(echo "$REPO" | cut -d/ -f2)"
+            echo "report_url=https://${OWNER}.github.io/${NAME}/${TARGET_FOLDER}/" >> "$GITHUB_OUTPUT"
+            echo "Deployed: https://${OWNER}.github.io/${NAME}/${TARGET_FOLDER}/"
+            SUCCESS=1
+            break
+          else
+            echo "Push rejected — will retry"
+          fi
+        done
+
+        if [ "$SUCCESS" -ne 1 ]; then
+          echo "::warning::Could not publish static report after ${MAX_ATTEMPTS} attempts"
+        fi

@@ -178,7 +178,13 @@ def main() -> int:
         has_stats = total > 0
 
     # ── Determine verdict ─────────────────────────────────────────────────────
-    if has_stats:
+    if stage_result.lower() == "skipped":
+        # Soft-gate path (e.g. device lab unavailable) — don't surface raw
+        # JUnit failures as a hard FAILED when the pipeline treats the stage
+        # as skipped and continues on the Unit gate.
+        verdict = "SKIPPED"
+        icon = ":fast_forward:"
+    elif has_stats:
         verdict = "PASSED" if failed == 0 else "FAILED"
         icon    = status_icon(passed, total)
     else:

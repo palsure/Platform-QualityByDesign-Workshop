@@ -60,14 +60,10 @@ curl -X POST http://localhost:8080/api/v1/videos \
 
 Open http://localhost:3000 in your browser and play the video.
 
-### 3. Check Metrics
+### 3. Verify video catalog
 
 ```bash
-# View collected metrics
-curl http://localhost:8080/api/v1/metrics?platform=web
-
-# Get summary
-curl http://localhost:8080/api/v1/metrics/summary?platform=web
+curl http://localhost:8080/api/v1/videos | jq '.[0].title, .[0].hlsManifestUrl'
 ```
 
 ## Stop everything

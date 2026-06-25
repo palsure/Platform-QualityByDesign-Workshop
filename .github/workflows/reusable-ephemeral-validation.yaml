@@ -24,6 +24,8 @@ on:
     secrets:
       SLACK_BOT_TOKEN:
         required: false
+      GITHUB_TOKEN:
+        required: false
     outputs:
       smoke_passed:
         value: ${{ jobs.validate.outputs.smoke_passed }}
@@ -31,18 +33,26 @@ on:
         value: ${{ jobs.validate.outputs.perf_passed }}
       all_passed:
         value: ${{ jobs.validate.outputs.passed }}
+      report_url:
+        value: ${{ jobs.validate.outputs.report_url }}
 
 jobs:
   validate:
-    name: Ephemeral Stack + Smoke + Perf
+    name: Full-Stack Smoke + Perf
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       smoke_passed: ${{ steps.smoke-gate.outputs.passed }}
       perf_passed: ${{ steps.perf-gate.outputs.passed }}
       passed: ${{ steps.promotion-gate.outputs.passed }}
+      report_url: ${{ steps.k6-publish.outputs.report_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Record job start time
+        run: echo "EPHEMERAL_START=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Build Docker Compose stack
         run: docker compose build
@@ -110,7 +120,10 @@ jobs:
         if: steps.smoke-gate.outputs.passed == 'true'
         env:
           API_BASE: http://localhost:8080
-        run: k6 run platform/tests/load/load-test.js
+        run: |
+          k6 run \
+            --summary-export=platform/tests/load/k6-summary.json \
+            platform/tests/load/load-test.js
 
       - name: Evaluate performance smoke gate
         id: perf-gate
@@ -139,15 +152,53 @@ jobs:
             exit 1
           fi
 
-      - name: Notify Slack — ephemeral validation
+      - name: Build k6 HTML report
+        id: k6-report
+        if: always() && steps.k6.outcome != 'skipped' && steps.k6.outcome != 'cancelled'
+        continue-on-error: true
+        run: |
+          MODULE="${{ inputs.module-name }}"
+          TITLE="Full-Stack Smoke + Perf"
+          [ -n "$MODULE" ] && TITLE="[$MODULE] Full-Stack Smoke + Perf"
+          python3 .github/scripts/k6_summary_to_html.py \
+            platform/tests/load/k6-summary.json \
+            ephemeral-k6-report \
+            "$TITLE"
+
+      - name: Publish k6 report to GitHub Pages
+        id: k6-publish
+        if: >-
+          always() &&
+          steps.k6-report.outcome == 'success' &&
+          env.GH_TOKEN != ''
+        continue-on-error: true
+        uses: ./.github/actions/publish-static-report
+        with:
+          source-dir:        ephemeral-k6-report
+          pages-destination: reports/${{ github.run_number }}/${{ inputs.module-name != '' && inputs.module-name || 'platform' }}/ephemeral
+          github-token:      ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calculate duration
+        if: always()
+        run: |
+          if [ "${EPHEMERAL_START:-0}" -gt "0" ]; then
+            ELAPSED=$(( $(date +%s) - EPHEMERAL_START ))
+            MINS=$(( ELAPSED / 60 )); SECS=$(( ELAPSED % 60 ))
+            [ $MINS -gt 0 ] && DUR="${MINS}m $(printf '%02d' $SECS)s" || DUR="${SECS}s"
+            echo "EPHEMERAL_DURATION=$DUR" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — full-stack smoke + perf
         if: always() && inputs.module-name != '' && inputs.thread-ts != ''
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         uses: ./.github/actions/slack-stage-notify
         with:
           module-name:      ${{ inputs.module-name }}
-          stage-name:       Ephemeral Validation
+          stage-name:       Full-Stack Smoke + Perf
           stage-result:     ${{ steps.promotion-gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          duration:         ${{ env.EPHEMERAL_DURATION }}
+          report-url:       ${{ steps.k6-publish.outputs.report_url }}
           thread-ts:        ${{ inputs.thread-ts }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}

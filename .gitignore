@@ -142,3 +142,8 @@ test-videos/*
 
 # ── Presentations (DevOpsDays materials — local reference only) ───────
 presentations/
+
+# ── Local workshop artifacts ─────────────────────────────────────────
+DevOpsDays/
+actionlint
+stage-slack-payload.json

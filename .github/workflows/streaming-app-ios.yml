@@ -407,20 +407,6 @@ jobs:
           allure-tag:         "BAT"
           allure-language:    "swift"
 
-      - name: Notify Slack — BAT result
-        if: always()
-        uses: ./.github/actions/slack-stage-notify
-        with:
-          module-name:      iOS
-          stage-name:       "BAT (Build Acceptance Tests)"
-          stage-result:     ${{ steps.bat.outcome }}
-          duration:         ${{ env.BAT_DURATION }}
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/bat
-          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
-          junit-dir:        ios-player/test-results
-          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
       - name: Evaluate BAT quality gate (inline)
         id: bat-gate
         if: always()
@@ -452,6 +438,20 @@ jobs:
             echo "    Smoke tests and Firebase publish are BLOCKED."
             echo "gate_passed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Notify Slack — BAT result
+        if: always()
+        uses: ./.github/actions/slack-stage-notify
+        with:
+          module-name:      iOS
+          stage-name:       "BAT (Build Acceptance Tests)"
+          stage-result:     ${{ steps.bat-gate.outputs.gate_passed == 'skipped' && 'skipped' || (steps.bat-gate.outputs.gate_passed == 'true' && 'success' || 'failure') }}
+          duration:         ${{ env.BAT_DURATION }}
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios/bat
+          thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
+          junit-dir:        ios-player/test-results
+          slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. SMOKE E2E — swift test --filter SmokeTests; JUnit XML; after BAT gate

@@ -38,6 +38,8 @@ jobs:
   devsecops:
     name: DevSecOps Defaults
     runs-on: ubuntu-latest
+    env:
+      MODULE_NAME: ${{ inputs.module-name }}
     outputs:
       passed:    ${{ steps.summary.outputs.passed }}
       gitleaks:  ${{ steps.gitleaks.outcome }}
@@ -56,11 +58,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
+        if: inputs.module-name == 'WEB' || inputs.module-name == 'QBD'
         with:
           node-version: '20'
 
       - name: Dependency audit (web-player npm)
         id: npm-audit
+        if: inputs.module-name == 'WEB' || inputs.module-name == 'QBD'
         run: |
           cd web-player
           npm install --ignore-scripts --no-audit
@@ -68,6 +72,7 @@ jobs:
 
       - name: Generate SBOM — backend-api (Syft)
         id: sbom-api
+        if: inputs.module-name == 'API' || inputs.module-name == 'QBD'
         uses: anchore/sbom-action@v0
         with:
           path: backend-api
@@ -76,6 +81,7 @@ jobs:
 
       - name: Generate SBOM — web-player (Syft)
         id: sbom-web
+        if: inputs.module-name == 'WEB' || inputs.module-name == 'QBD'
         uses: anchore/sbom-action@v0
         with:
           path: web-player
@@ -84,6 +90,7 @@ jobs:
 
       - name: Filesystem scan — backend-api (Trivy)
         id: trivy
+        if: inputs.module-name == 'API' || inputs.module-name == 'QBD'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -94,6 +101,7 @@ jobs:
 
       - name: Policy-as-code (Conftest)
         id: conftest
+        if: inputs.module-name == 'API' || inputs.module-name == 'QBD'
         run: |
           docker run --rm \
             -v "$PWD/platform/env:/env" \
@@ -104,18 +112,14 @@ jobs:
       - name: DevSecOps gate summary
         id: summary
         if: always()
-        run: |
-          GITLEAKS="${{ steps.gitleaks.outcome }}"
-          NPM="${{ steps.npm-audit.outcome }}"
-          TRIVY="${{ steps.trivy.outcome }}"
-          CONFTEST="${{ steps.conftest.outcome }}"
-          echo "Gitleaks=$GITLEAKS | npm audit=$NPM | Trivy=$TRIVY | Conftest=$CONFTEST"
-          if [ "$GITLEAKS" = "success" ] && [ "$NPM" = "success" ] && [ "$TRIVY" = "success" ] && [ "$CONFTEST" = "success" ]; then
-            echo "passed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "passed=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
+        env:
+          GITLEAKS:   ${{ steps.gitleaks.outcome }}
+          NPM_AUDIT:  ${{ steps.npm-audit.outcome }}
+          TRIVY:      ${{ steps.trivy.outcome }}
+          CONFTEST:   ${{ steps.conftest.outcome }}
+          SBOM_API:   ${{ steps.sbom-api.outcome }}
+          SBOM_WEB:   ${{ steps.sbom-web.outcome }}
+        run: python3 .github/scripts/devsecops_gate_summary.py
 
       - name: Notify Slack — DevSecOps
         if: always() && inputs.module-name != '' && inputs.thread-ts != ''

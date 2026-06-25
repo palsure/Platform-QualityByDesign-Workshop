@@ -440,47 +440,22 @@ open build/reports/tests/index.html
 
 ---
 
-## 5 — Automation / System Tests (`qoe-automation-tests/`)
+## 5 — Platform smoke & load tests (`platform/tests/`)
 
-These are TestNG integration tests that run **against the live API**.  
-The Docker stack must be running (`docker compose up -d`).
+Full-stack checks used by CI ephemeral validation. Requires the Docker stack (`docker compose up -d`).
 
-### 5.1 Run all automation tests
-
-```bash
-cd qoe-automation-tests
-mvn test -Dapi.base.url=http://localhost:8080
-```
-
-### 5.2 Run a specific test suite
+### 5.1 Smoke (curl + jq)
 
 ```bash
-# API-only suite
-mvn test -Dapi.base.url=http://localhost:8080 \
-         -DsuiteXmlFile=src/test/resources/testng.xml
-
-# Mobile suite
-mvn test -Dapi.base.url=http://localhost:8080 \
-         -DsuiteXmlFile=src/test/resources/testng-mobile.xml
+platform/tests/smoke/smoke-test.sh http://localhost:8080 http://localhost:3000
 ```
 
-### 5.3 Surefire XML results
-
-Maven Surefire saves JUnit-compatible XML to:
-
-```
-qoe-automation-tests/target/surefire-reports/TEST-*.xml
-```
-
-### 5.4 Allure report
+### 5.2 Load (k6)
 
 ```bash
-# generate HTML from allure-results/ captured during the test run
-mvn allure:report
-
-# open the report (use allure serve to avoid browser file:// restrictions)
-allure serve target/allure-results --port 5055
-# open http://127.0.0.1:5055
+k6 run platform/tests/load/load-test.js \
+  -e API_BASE_URL=http://localhost:8080 \
+  -e WEB_BASE_URL=http://localhost:3000
 ```
 
 ---

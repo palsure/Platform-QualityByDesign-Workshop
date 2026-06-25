@@ -25,6 +25,11 @@ esac
 REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 DASHBOARD_JSON="$REPO_ROOT/ops/monitoring/newrelic/dashboards/qoe-dashboard.json"
 
+if [ ! -f "$DASHBOARD_JSON" ]; then
+  echo "No dashboard JSON at $DASHBOARD_JSON — nothing to install (skip)"
+  exit 0
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq is required (brew install jq)" >&2
   exit 1

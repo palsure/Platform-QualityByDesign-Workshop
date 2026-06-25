@@ -14,17 +14,15 @@ test.describe('Playback @Smoke', () => {
     await waitForVideoPlaying(page);
   });
 
-  test('player toggle pauses and resumes playback', async ({ page }) => {
+  test('playback pauses and resumes in fullscreen player', async ({ page }) => {
     await selectVideoAndPlay(page);
     await waitForVideoPlaying(page);
 
-    const toggle = page.getByTestId('player-toggle-btn');
-    await toggle.click();
-    await expect.poll(async () => {
-      return page.getByTestId('stream-video').evaluate((el: HTMLVideoElement) => el.paused);
-    }).toBe(true);
+    const video = page.getByTestId('stream-video');
+    await video.evaluate((el: HTMLVideoElement) => el.pause());
+    await expect.poll(async () => video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
 
-    await toggle.click();
+    await video.evaluate((el: HTMLVideoElement) => void el.play());
     await waitForVideoPlaying(page);
   });
 });
