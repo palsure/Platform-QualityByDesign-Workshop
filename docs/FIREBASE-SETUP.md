@@ -177,6 +177,7 @@ CI runs Espresso on **Firebase Test Lab virtual devices** first (free-tier frien
 | Name | Where | Notes |
 |---|---|---|
 | `GCP_SA_KEY` | Secret | Service account JSON |
+| `USE_FIREBASE_TEST_LAB` | Variable (optional) | Set to `true` when Test Lab is enabled (updates Slack pipeline label; jobs still use `GCP_SA_KEY`) |
 | `FIREBASE_PROJECT_ID` | Variable | Already used for App Distribution links |
 | `FTL_DEVICE_ANDROID` | Variable (optional) | Default `model=MediumPhone.arm,version=33,locale=en,orientation=portrait` |
 | `FTL_RESULTS_BUCKET` | Variable (optional) | Default `gs://PROJECT-test-lab-results` |

@@ -151,7 +151,7 @@ jobs:
       pipeline-steps: >-
         DevSecOps → Unit ∥ Lint → Build APK → Internal Firebase → BAT →
         Public Firebase → Smoke
-        ${{ secrets.GCP_SA_KEY != '' && '(BAT/Smoke on Firebase Test Lab → emulator fallback)' || (vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest)' || '(BAT/Smoke on local emulator)') }}
+        ${{ vars.USE_FIREBASE_TEST_LAB == 'true' && '(BAT/Smoke on Firebase Test Lab → emulator fallback)' || (vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest)' || '(BAT/Smoke on local emulator)') }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
