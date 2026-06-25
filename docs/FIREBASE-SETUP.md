@@ -103,9 +103,14 @@ Hosting serves `dist/` with SPA rewrites. No changes needed unless you change th
 2. **App Distribution → Testers & Groups** → create groups (use the **alias**, not the display name):
    - `internal-testers` — canary builds (set `FIREBASE_INTERNAL_GROUPS=internal-testers`, or use `FIREBASE_INTERNAL_TESTERS` emails instead)
    - `external-testers` or custom — public promotion (optional)
+
+   The pipeline **auto-creates** any missing group alias before upload. You still need to **add tester emails** to that group in the Firebase Console (or set `FIREBASE_INTERNAL_TESTERS` so the CLI invites them by email).
+
 3. Add tester emails to each group, **or** set `FIREBASE_INTERNAL_TESTERS` / `FIREBASE_PUBLIC_TESTERS` with comma-separated emails in GitHub Variables.
 
 If neither emails nor groups are configured, the pipeline still uploads the APK to App Distribution but does not notify anyone.
+
+**Troubleshooting `failed to distribute to testers/groups` (HTTP 404):** `FIREBASE_INTERNAL_GROUPS` in GitHub only tells the pipeline which alias to use — the group must exist in Firebase (the pipeline creates it if missing). **Add at least one tester email** to the group in Firebase Console, or set `FIREBASE_INTERNAL_TESTERS=you@email.com` in GitHub Variables.
 
 Update `android-player/firebase.json` with your App ID if deploying locally:
 
