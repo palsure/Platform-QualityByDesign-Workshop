@@ -5,16 +5,13 @@ struct VideoPlayerView: View {
     let video: StreamVideo
     @Binding var isPresented: Bool
 
-    @StateObject private var collector: QoECollector
     @State private var player: AVPlayer
 
     init(video: StreamVideo, isPresented: Binding<Bool>) {
         self.video = video
         self._isPresented = isPresented
         let url = URL(string: video.hlsUrl)!
-        let p = AVPlayer(url: url)
-        self._player = State(initialValue: p)
-        self._collector = StateObject(wrappedValue: QoECollector(videoId: video.id))
+        self._player = State(initialValue: AVPlayer(url: url))
     }
 
     var body: some View {
@@ -25,11 +22,9 @@ struct VideoPlayerView: View {
                 .ignoresSafeArea()
                 .onAppear {
                     player.play()
-                    collector.startCollecting(player: player)
                 }
                 .onDisappear {
                     player.pause()
-                    collector.stopCollecting()
                 }
 
             Button {
@@ -41,11 +36,10 @@ struct VideoPlayerView: View {
                     .foregroundStyle(Color.white, Color.black.opacity(0.4))
                     .padding(20)
             }
+            .accessibilityLabel("Close player")
         }
     }
 }
-
-// MARK: - AVPlayerViewController wrapper
 
 private struct AVPlayerViewControllerRepresentable: UIViewControllerRepresentable {
     let player: AVPlayer

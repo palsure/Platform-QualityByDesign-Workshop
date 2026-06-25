@@ -1,0 +1,88 @@
+name: 'Firebase Test Lab Espresso runner'
+description: |
+  Run a category-filtered Espresso suite on Firebase Test Lab virtual devices
+  (free-tier friendly). Downloads JUnit XML into the output directory for
+  Allure and gate evaluation. Exit code 2 means "lab unavailable" so the
+  workflow can fall back to a local emulator.
+
+inputs:
+  project-id:
+    required: true
+    description: 'Firebase / GCP project ID'
+  app-apk:
+    required: true
+    description: 'Path to the application debug APK'
+  test-apk:
+    required: true
+    description: 'Path to the androidTest APK'
+  annotation:
+    required: true
+    description: 'JUnit category annotation FQCN (BAT / Smoke / Regression)'
+  matrix-label:
+    required: true
+    description: 'Label shown in the Firebase Test Lab console'
+  output-dir:
+    required: true
+    description: 'Directory for downloaded JUnit XML'
+  device:
+    required: false
+    default: 'model=MediumPhone.arm,version=33,locale=en,orientation=portrait'
+    description: 'FTL device spec (virtual MediumPhone.arm by default)'
+  timeout:
+    required: false
+    default: '15m'
+    description: 'Per-matrix timeout passed to gcloud'
+  results-bucket:
+    required: false
+    default: ''
+    description: 'GCS bucket for results (default gs://PROJECT-test-lab-results)'
+
+outputs:
+  exit_code:
+    description: '0 passed, 1 test failure, 2 lab unavailable'
+    value: ${{ steps.run.outputs.exit_code }}
+  matrix_id:
+    description: 'Firebase Test Lab matrix ID'
+    value: ${{ steps.run.outputs.matrix_id }}
+  console_url:
+    description: 'Link to the Test Lab run in Firebase console'
+    value: ${{ steps.run.outputs.console_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve runner script path
+      id: paths
+      shell: bash
+      run: |
+        SCRIPT="$GITHUB_ACTION_PATH/../../scripts/firebase_test_lab_espresso_run.py"
+        if [ ! -f "$SCRIPT" ]; then
+          echo "::error title=Missing script::Expected $SCRIPT"; exit 1
+        fi
+        echo "script=$SCRIPT" >> "$GITHUB_OUTPUT"
+
+    - name: Run Espresso suite on Firebase Test Lab
+      id: run
+      shell: bash
+      env:
+        FIREBASE_PROJECT_ID: ${{ inputs.project-id }}
+        FTL_DEVICE_ANDROID: ${{ inputs.device }}
+      run: |
+        set -uo pipefail
+        EXTRA=()
+        if [ -n "${{ inputs.results-bucket }}" ]; then
+          EXTRA+=(--results-bucket "${{ inputs.results-bucket }}")
+        fi
+        python3 "${{ steps.paths.outputs.script }}" \
+          --app-apk       "${{ inputs.app-apk }}" \
+          --test-apk      "${{ inputs.test-apk }}" \
+          --annotation    "${{ inputs.annotation }}" \
+          --matrix-label  "${{ inputs.matrix-label }}" \
+          --output-dir    "${{ inputs.output-dir }}" \
+          --project-id    "${{ inputs.project-id }}" \
+          --device        "${{ inputs.device }}" \
+          --timeout       "${{ inputs.timeout }}" \
+          "${EXTRA[@]}"
+        EXIT=$?
+        echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+        exit $EXIT

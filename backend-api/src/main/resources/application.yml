@@ -49,9 +49,4 @@ logging:
 newrelic:
   enabled: ${NEWRELIC_ENABLED:false}
   license-key: ${NEWRELIC_LICENSE_KEY:}
-  app-name: QoE API
-
-# Build acceptance: pass rate = sum(passed) / sum(total) across recorded platforms; release if >= threshold
-pipeline:
-  gate:
-    min-pass-rate: 0.8
+  app-name: StreamApp API

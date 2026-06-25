@@ -19,10 +19,10 @@ public class OpenApiConfig {
         String localUrl = "http://localhost:" + serverPort;
         return new OpenAPI()
                 .info(new Info()
-                        .title("QoE API")
-                        .description("REST API for QoE metrics, validation, videos, and pipeline acceptance (workshop demo).")
+                        .title("StreamApp API")
+                        .description("REST API for the video catalog and streaming workshop demo.")
                         .version("1.0.0")
-                        .contact(new Contact().name("DevOpsDays QoE"))
+                        .contact(new Contact().name("StreamApp"))
                         .license(new License().name("Apache 2.0").url("https://www.apache.org/licenses/LICENSE-2.0")))
                 .servers(List.of(new Server().url(localUrl).description("Local")));
     }

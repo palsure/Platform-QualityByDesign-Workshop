@@ -1,4 +1,3 @@
-import type { DemoScenarioId } from '../demo/scenarios';
 import { getCatalogImages } from './catalog-images';
 
 export type ContentType = 'movie' | 'show' | 'live';
@@ -21,7 +20,6 @@ export interface Video {
   /** Hero / detail banner (wide) */
   bannerUrl: string;
   accentColor: string;
-  scenario: DemoScenarioId;
   matchScore: number;  // 0-100
   contentType: ContentType;
   /** Series info for shows (e.g. "2 Seasons · 18 Episodes") */
@@ -78,7 +76,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(160deg, #020024 0%, #090979 50%, #00d4ff 100%)',
         accentColor: '#00d4ff',
-        scenario: 'baseline',
         matchScore: 97,
       }),
       video({
@@ -94,7 +91,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(160deg, #0d0d0d 0%, #1a0533 50%, #ff006e 100%)',
         accentColor: '#ff006e',
-        scenario: 'baseline',
         matchScore: 91,
       }),
     ],
@@ -116,7 +112,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #1a3a2a 0%, #0a5a3a 60%, #00c97a 100%)',
         accentColor: '#00c97a',
-        scenario: 'baseline',
         matchScore: 95,
       }),
       video({
@@ -134,7 +129,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #1a0a2a 0%, #3a0a5a 60%, #9b00ff 100%)',
         accentColor: '#9b00ff',
-        scenario: 'baseline',
         matchScore: 88,
       }),
       video({
@@ -150,7 +144,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.sintel,
         gradient: 'linear-gradient(135deg, #0a0a2a 0%, #0a2a5a 60%, #0077ff 100%)',
         accentColor: '#0077ff',
-        scenario: 'baseline',
         matchScore: 93,
       }),
       video({
@@ -166,7 +159,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #0a1a0a 0%, #1a3a0a 60%, #5a8a00 100%)',
         accentColor: '#7ab800',
-        scenario: 'baseline',
         matchScore: 86,
       }),
       video({
@@ -182,7 +174,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #1a0a0a 0%, #4a1a0a 60%, #ff6600 100%)',
         accentColor: '#ff6600',
-        scenario: 'baseline',
         matchScore: 90,
       }),
       video({
@@ -198,7 +189,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.sintel,
         gradient: 'linear-gradient(135deg, #00101a 0%, #00305a 60%, #00b4d8 100%)',
         accentColor: '#00b4d8',
-        scenario: 'baseline',
         matchScore: 94,
       }),
     ],
@@ -222,7 +212,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #2a1500 0%, #6a3500 60%, #ff9500 100%)',
         accentColor: '#ff9500',
-        scenario: 'baseline',
         matchScore: 89,
       }),
       video({
@@ -238,7 +227,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.sintel,
         gradient: 'linear-gradient(135deg, #001a1a 0%, #004040 60%, #00dddd 100%)',
         accentColor: '#00dddd',
-        scenario: 'baseline',
         matchScore: 92,
       }),
       video({
@@ -254,7 +242,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #0a0a1a 0%, #1a2a4a 60%, #6699ff 100%)',
         accentColor: '#6699ff',
-        scenario: 'baseline',
         matchScore: 96,
       }),
       video({
@@ -270,7 +257,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #1a0000 0%, #4a0000 60%, #ff3333 100%)',
         accentColor: '#ff3333',
-        scenario: 'baseline',
         matchScore: 87,
       }),
     ],
@@ -294,7 +280,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a0533 50%, #00f5ff 100%)',
         accentColor: '#00f5ff',
-        scenario: 'baseline',
         matchScore: 93,
       }),
       video({
@@ -312,7 +297,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.sintel,
         gradient: 'linear-gradient(135deg, #001525 0%, #003366 60%, #66ccff 100%)',
         accentColor: '#66ccff',
-        scenario: 'baseline',
         matchScore: 90,
       }),
       video({
@@ -330,7 +314,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #1a1000 0%, #4a3000 60%, #d4a017 100%)',
         accentColor: '#d4a017',
-        scenario: 'baseline',
         matchScore: 87,
       }),
     ],
@@ -354,7 +337,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bipbop,
         gradient: 'linear-gradient(135deg, #0a2a0a 0%, #1a5a1a 60%, #00ff44 100%)',
         accentColor: '#00ff44',
-        scenario: 'baseline',
         matchScore: 98,
       }),
       video({
@@ -372,7 +354,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #0a0a2a 0%, #1a1a5a 60%, #4466ff 100%)',
         accentColor: '#4466ff',
-        scenario: 'baseline',
         matchScore: 85,
       }),
       video({
@@ -390,7 +371,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.sintel,
         gradient: 'linear-gradient(135deg, #1a0a00 0%, #4a2000 60%, #ff8800 100%)',
         accentColor: '#ff8800',
-        scenario: 'baseline',
         matchScore: 91,
       }),
       video({
@@ -408,7 +388,6 @@ export const CATALOG: CatalogRow[] = [
         hlsUrl: STREAMS.bigBuckBunny,
         gradient: 'linear-gradient(135deg, #0a0a1a 0%, #1a2a4a 60%, #88aaff 100%)',
         accentColor: '#88aaff',
-        scenario: 'baseline',
         matchScore: 82,
       }),
     ],

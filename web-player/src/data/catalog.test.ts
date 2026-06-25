@@ -1,6 +1,5 @@
 import * as allure from 'allure-js-commons';
 import { describe, expect, it } from 'vitest';
-import { DEMO_SCENARIO_IDS } from '../demo/scenarios';
 import { ALL_VIDEOS, CATALOG, HERO_VIDEO, findVideo } from './catalog';
 
 // ── CATALOG structure ───────────────────────────────────────────────────────
@@ -141,17 +140,6 @@ describe('ALL_VIDEOS', () => {
     }
   });
 
-  it('all scenario values are valid DemoScenarioIds', async () => {
-    await allure.feature('Video Catalog');
-    await allure.story('ALL_VIDEOS');
-    await allure.description('The scenario field is used for optional playback fault injection in CI tests.');
-    for (const video of ALL_VIDEOS) {
-      await allure.step(`"${video.id}" scenario is known`, () =>
-        expect(DEMO_SCENARIO_IDS as readonly string[]).toContain(video.scenario),
-      );
-    }
-  });
-
   it('all year values are plausible (≥ 2000)', async () => {
     await allure.feature('Video Catalog');
     await allure.story('ALL_VIDEOS');
@@ -222,15 +210,6 @@ describe('HERO_VIDEO', () => {
     await allure.description('HERO_VIDEO must be reachable via findVideo so detail pages work when navigating from the hero banner.');
     await allure.step('findVideo(HERO_VIDEO.id) === HERO_VIDEO', () =>
       expect(findVideo(HERO_VIDEO.id)).toBe(HERO_VIDEO),
-    );
-  });
-
-  it('has a baseline scenario', async () => {
-    await allure.feature('Video Catalog');
-    await allure.story('HERO_VIDEO');
-    await allure.description('The hero video should use the baseline scenario for normal playback.');
-    await allure.step('scenario === "baseline"', () =>
-      expect(HERO_VIDEO.scenario).toBe('baseline'),
     );
   });
 });

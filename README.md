@@ -110,13 +110,16 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 
 | Mode | Selected when | Where it runs |
 |---|---|---|
-| **LambdaTest cloud device** | `vars.LT_USERNAME` is set on the repo | Real Pixel/iPhone hardware on LambdaTest |
-| **Self-hosted emulator/simulator** | `vars.LT_USERNAME` is unset | KVM-accelerated x86_64 AVD on `ubuntu-latest` (Android) / Xcode simulator on `macos-latest` (iOS) |
+| **Firebase Test Lab** (virtual) + emulator fallback | `secrets.GCP_SA_KEY` is set | Free-tier virtual device; falls back to GitHub emulator if unavailable |
+| **LambdaTest cloud device** | `vars.LT_USERNAME` set (no `GCP_SA_KEY`) | Real Pixel hardware on LambdaTest |
+| **Self-hosted emulator** | No cloud credentials | KVM-accelerated x86_64 AVD on `ubuntu-latest` |
 
 **Workshop escape hatches.** Mobile device labs are flaky; these flags keep the rest of the pipeline shipping when the lab is down:
 
 | Variable | Effect |
 |---|---|
+| `vars.RUN_SMOKE_TESTS_ANDROID=false` | Skip Android Smoke E2E; pipeline continues to report |
+| `vars.RUN_SMOKE_TESTS_IOS=false` | Skip iOS Smoke E2E; Firebase publish still proceeds when BAT passes |
 | `vars.SKIP_BAT=true` *or* `[skip-bat]` in commit/PR title | Skip BAT entirely for one run; Firebase publishes on the Unit gate alone |
 | `vars.NO_DEVICE_LAB=true` | Persistent override — BAT reports `SKIPPED` (not `FAILED`) so Slack stays green |
 | `inputs.skip_tests=true` | Hotfix mode — bypass every gate, ship straight to public |
@@ -129,7 +132,6 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 | [`web-player/`](web-player/README.md) | React + TypeScript + HLS.js player | Setup, E2E tests, Allure reports |
 | [`ios-player/`](ios-player/README.md) | Swift Package library + SwiftUI demo app | Library usage, Xcode build, Firebase deploy |
 | [`android-player/`](android-player/README.md) | Kotlin / ExoPlayer Android app | Android Studio setup, APK build |
-| [`qoe-automation-tests/`](qoe-automation-tests/README.md) | Java / TestNG cross-platform automation | API, web, and mobile tests |
 | [`ops/`](ops/README.md) | Infrastructure, monitoring, shared schema | nginx, FFmpeg, New Relic, JSON schema |
 
 ## Project structure
@@ -139,7 +141,6 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 ├── web-player/                  # React/Vite SPA + Playwright E2E
 ├── ios-player/                  # SwiftPM library (StreamApp) + SwiftUI demo app
 ├── android-player/              # Gradle (Kotlin DSL) Android app + Espresso
-├── qoe-automation-tests/        # Maven/TestNG cross-platform suite
 ├── ops/
 │   ├── infrastructure/          # nginx config, FFmpeg HLS transcoder, tc network sim
 │   ├── monitoring/              # New Relic dashboards, alerts, NRQL
@@ -164,9 +165,8 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 | Tool | Min version | Used by |
 |---|---|---|
 | Docker Desktop | 24+ | full stack |
-| Java JDK | **21+** | `backend-api` and `qoe-automation-tests` |
+| Java JDK | **21+** | `backend-api` |
 | Node.js | 18+ | `web-player` |
-| Maven | 3.9+ | `qoe-automation-tests` |
 | Allure CLI | 2.27+ | viewing test reports — `brew install allure` |
 | Xcode | 15+ | `ios-player` (macOS only) |
 | Android Studio | Hedgehog or later | `android-player` |

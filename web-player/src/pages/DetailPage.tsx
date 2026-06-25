@@ -149,10 +149,9 @@ export function DetailPage({ video, onBack, autoPlay = false }: DetailPageProps)
             renders on a GPU compositing layer and ignores z-index otherwise */}
         {playing && (
           <VideoPlayer
-            key={`${video.id}|${video.scenario}`}
+            key={video.id}
             videoUrl={video.hlsUrl}
             videoId={video.id}
-            scenario={video.scenario}
             autoPlayForE2E={true}
           />
         )}

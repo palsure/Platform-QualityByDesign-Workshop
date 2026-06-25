@@ -1,12 +1,11 @@
 spring:
   flyway:
-    # Tests use Testcontainers with create-drop — Flyway not needed and would conflict.
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
   jpa:
     hibernate:
-      # create-drop: Hibernate creates schema from JPA entities (no Flyway needed in tests).
-      # The Testcontainers PostgreSQL container starts fresh each test-class run.
-      ddl-auto: create-drop
+      ddl-auto: validate
   test:
     database:
       replace: none

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Runs before integration (BAT) in the Quality-by-Design gate chain.
  */
 @Tag("contract")
-@Epic("QoE API")
+@Epic("StreamApp API")
 @Feature("API contract")
 @Execution(ExecutionMode.SAME_THREAD)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -86,16 +86,17 @@ class ApiContractIT {
     }
 
     @Test
-    @DisplayName("GET /api/v1/platforms returns stable platform list shape")
-    void platformsListContract() {
+    @DisplayName("GET /api/v1/videos returns stable catalog shape")
+    void videosListContract() {
         given()
-                .when().get("/api/v1/platforms")
+                .when().get("/api/v1/videos")
                 .then()
                 .statusCode(200)
                 .body("$", hasSize(org.hamcrest.Matchers.greaterThan(0)))
-                .body("[0].key", notNullValue())
-                .body("[0].displayName", notNullValue())
-                .body("[0].category", notNullValue());
+                .body("[0].id", notNullValue())
+                .body("[0].title", notNullValue())
+                .body("[0].videoId", notNullValue())
+                .body("[0].hlsManifestUrl", notNullValue());
     }
 
     @Test

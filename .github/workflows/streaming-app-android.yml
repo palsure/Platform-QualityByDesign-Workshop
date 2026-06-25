@@ -35,44 +35,41 @@ name: Streaming App — Android
 #                         (or soft-gated skip). No more workflow_dispatch
 #                         constraint — promotion is automatic on green BAT.
 #   8. smoke-e2e        — @Smoke against the public-released build; runs
-#                         after publish-public. Dual-mode runner.
+#                         after public Firebase promotion when enabled.
+#                         Skip when vars.RUN_SMOKE_TESTS_ANDROID = false.
 #   9. regression-e2e   — @Regression; nightly schedule only; non-blocking.
 #  10. report           — Slack summary + update initial message.
 #
 # DUAL-MODE BAT/SMOKE RUNNER
 # ──────────────────────────
-# bat-e2e and smoke-e2e pick their runner at job-resolution time based on
-# whether `vars.LT_USERNAME` is set:
+# bat-e2e and smoke-e2e try device labs in this order:
 #
-#   • LambdaTest (real-device cloud) — vars.LT_USERNAME is set
-#       runs-on: ubuntu-latest
-#       Uploads the prebuilt APKs to LambdaTest, runs Espresso on a real
-#       Android phone (default Pixel 6 Pro-13), polls for completion, and
-#       downloads JUnit XML for the existing Allure / Slack flow.
+#   1. Firebase Test Lab (virtual device, free-tier friendly)
+#        When secrets.GCP_SA_KEY is set — runs on MediumPhone.arm API 33.
+#        If the lab is unavailable (quota, auth, no results) the job falls
+#        back to the local KVM emulator automatically.
 #
-#   • Local emulator — vars.LT_USERNAME is empty
-#       runs-on: ubuntu-latest (KVM-accelerated x86_64 AVD)
-#       Boots a cached AVD snapshot and runs `connectedDebugAndroidTest`.
-#       Migrated off macos-13 because the macOS hosted-runner queue can
-#       sit at "Waiting for a runner..." for 10-15 min during peak hours.
+#   2. LambdaTest (optional legacy path)
+#        When vars.LT_USERNAME is set AND GCP_SA_KEY is empty.
 #
-# Both paths are SOFT-GATED: if the device is unavailable (no JUnit XML
-# produced) the gate emits 'skipped' and Firebase deploy still proceeds
-# based on the Unit gate alone. Hard test failures continue to block.
+#   3. Local emulator (fallback or primary)
+#        KVM-accelerated x86_64 AVD on ubuntu-latest when FTL is not
+#        configured, or when FTL returns exit code 2 (unavailable).
 #
-# Required secrets (Slack steps are skipped when not set):
-#   SLACK_BOT_TOKEN       — Slack bot OAuth token
-#   SLACK_CHANNEL_ID      — Target Slack channel ID
-# Optional secrets:
-#   FIREBASE_TOKEN        — Firebase CI token
-#   FIREBASE_PROJECT_ID   — Firebase project ID
-#   FIREBASE_APP_ID_ANDROID — Firebase App ID for App Distribution
-#   FIREBASE_TESTERS      — Comma-separated list of tester emails
-#   LT_ACCESS_KEY         — LambdaTest access key (required for LT path)
-# Optional repository Variables (vars context):
-#   LT_USERNAME           — LambdaTest username; presence enables LT path
-#   LT_DEVICE_ANDROID     — Device name (default "Pixel 6 Pro-13")
-#   LT_REGION             — LT region: us | eu | in (default us)
+# Both cloud paths are SOFT-GATED on total unavailability; hard test failures
+# still block public promotion.
+#
+# Required for Firebase Test Lab:
+#   secrets.GCP_SA_KEY         — GCP service account JSON (Firebase Test Lab Admin)
+#   vars.FIREBASE_PROJECT_ID   — Firebase / GCP project ID
+# Optional:
+#   vars.FTL_DEVICE_ANDROID    — Device spec (default MediumPhone.arm API 33)
+#   vars.FTL_RESULTS_BUCKET    — GCS bucket (default gs://PROJECT-test-lab-results)
+#   vars.RUN_SMOKE_TESTS_ANDROID — Set to false to skip Smoke E2E (default: run)
+#
+# Required when using the LambdaTest path:
+#   vars.LT_USERNAME       LambdaTest username (repository Variable)
+#   secrets.LT_ACCESS_KEY  LambdaTest access key (repository Secret)
 
 on:
   pull_request:
@@ -154,7 +151,7 @@ jobs:
       pipeline-steps: >-
         DevSecOps → Unit ∥ Lint → Build APK → Internal Firebase → BAT →
         Public Firebase → Smoke
-        ${{ vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest real device)' || '(BAT/Smoke on local emulator)' }}
+        ${{ secrets.GCP_SA_KEY != '' && '(BAT/Smoke on Firebase Test Lab → emulator fallback)' || (vars.LT_USERNAME != '' && '(BAT/Smoke on LambdaTest)' || '(BAT/Smoke on local emulator)') }}
       environment-label: ${{ github.event.inputs.environment || 'STAGE' }}
       slack-channel-id:  ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
@@ -535,36 +532,42 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # Java is needed by the emulator path (gradle test exec). LambdaTest
-      # path doesn't need it but the setup is cheap (~10s) and harmless.
-      - uses: actions/setup-java@v4
-        if: vars.LT_USERNAME == ''
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Gradle
-        if: vars.LT_USERNAME == ''
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          # See cache-read-only commentary on the build job — same reasoning:
-          # let this run's first Gradle job populate the cache so MC only has
-          # to cooperate once per workflow instead of once per job.
-          cache-read-only: false
-
-      # ─── LambdaTest path ─────────────────────────────────────────────────
-      # Real-device cloud run — uploads APKs, dispatches via REST, polls,
-      # downloads JUnit XML into the same directory the emulator path would.
-      - name: Download prebuilt APKs (LambdaTest path)
-        if: vars.LT_USERNAME != ''
+      - name: Download prebuilt APKs
         uses: actions/download-artifact@v4
         with:
           name: android-debug-apk
           path: android-player/app/build/outputs/apk
 
+      # ─── Firebase Test Lab (virtual device — free tier) ──────────────────
+      - name: Authenticate to Google Cloud (Test Lab)
+        if: secrets.GCP_SA_KEY != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud CLI
+        if: secrets.GCP_SA_KEY != ''
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run BAT on Firebase Test Lab
+        id: bat-ftl
+        if: secrets.GCP_SA_KEY != ''
+        continue-on-error: true
+        uses: ./.github/actions/firebase-test-lab-espresso
+        with:
+          project-id:     ${{ env.FIREBASE_PROJECT_ID }}
+          app-apk:        android-player/app/build/outputs/apk/debug/app-debug.apk
+          test-apk:       android-player/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          annotation:     com.devopsdays.qoe.player.categories.BAT
+          matrix-label:   "Android BAT — Build #${{ github.run_number }}"
+          output-dir:     android-player/app/build/outputs/androidTest-results/connected
+          device:         ${{ vars.FTL_DEVICE_ANDROID || 'model=MediumPhone.arm,version=33,locale=en,orientation=portrait' }}
+          results-bucket: ${{ vars.FTL_RESULTS_BUCKET }}
+
+      # ─── LambdaTest path (legacy — only when FTL credentials absent) ─────
       - name: Run BAT on LambdaTest (real device)
         id: bat-lt
-        if: vars.LT_USERNAME != ''
+        if: secrets.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
         continue-on-error: true
         uses: ./.github/actions/lambdatest-espresso
         with:
@@ -578,9 +581,26 @@ jobs:
           output-dir:     android-player/app/build/outputs/androidTest-results/connected
           region:         ${{ vars.LT_REGION || 'us' }}
 
-      # ─── Emulator path (KVM-accelerated x86_64 AVD on ubuntu-latest) ─────
+      # ─── Emulator path (primary when no cloud creds, or FTL fallback) ────
+      - uses: actions/setup-java@v4
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
       - name: Enable KVM permissions
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         run: |
           # ubuntu-latest exposes /dev/kvm but the runner user needs the
           # right udev rule to access it without sudo. Canonical setup
@@ -592,7 +612,9 @@ jobs:
           ls -l /dev/kvm
 
       - name: AVD cache
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         id: avd-cache
         uses: actions/cache@v4
         with:
@@ -605,7 +627,10 @@ jobs:
           key: avd-bat-api33-x86_64-ubuntu-v1
 
       - name: Create AVD snapshot (cache miss only)
-        if: vars.LT_USERNAME == '' && steps.avd-cache.outputs.cache-hit != 'true'
+        if: |
+          ((secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+           (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')) &&
+          steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
@@ -624,7 +649,9 @@ jobs:
 
       - name: Run BAT tests on emulator
         id: bat-emu
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -698,8 +725,8 @@ jobs:
         uses: ./.github/actions/slack-stage-notify
         with:
           module-name:     ANDROID
-          stage-name:      "BAT (Build Acceptance Tests)${{ vars.LT_USERNAME != '' && ' on LambdaTest' || '' }}"
-          stage-result:    ${{ vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome }}
+          stage-name:      "BAT (Build Acceptance Tests)${{ secrets.GCP_SA_KEY != '' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
+          stage-result:    ${{ secrets.GCP_SA_KEY != '' && (steps.bat-ftl.outputs.exit_code == '2' && steps.bat-emu.outcome || steps.bat-ftl.outcome) || (vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome) }}
           duration:        ${{ env.BAT_DURATION }}
           report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/bat
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
@@ -712,9 +739,18 @@ jobs:
         if: always()
         run: |
           set -uo pipefail
-          # Pick the outcome from whichever path actually ran (the other one
-          # was skipped via `if:` and reports outcome='skipped').
-          if [ "${{ vars.LT_USERNAME }}" != "" ]; then
+          # Pick the outcome from whichever path actually ran.
+          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+            FTL_EXIT="${{ steps.bat-ftl.outputs.exit_code }}"
+            if [ "$FTL_EXIT" = "0" ]; then
+              BAT="${{ steps.bat-ftl.outcome }}"
+            elif [ "$FTL_EXIT" = "2" ]; then
+              echo "::notice title=FTL fallback::Firebase Test Lab unavailable — used local emulator."
+              BAT="${{ steps.bat-emu.outcome }}"
+            else
+              BAT="${{ steps.bat-ftl.outcome }}"
+            fi
+          elif [ -n "${{ vars.LT_USERNAME }}" ]; then
             BAT="${{ steps.bat-lt.outcome }}"
           else
             BAT="${{ steps.bat-emu.outcome }}"
@@ -833,6 +869,7 @@ jobs:
     # publish-public makes the sequencing clear in the pipeline graph.
     needs: [notify-start, build, bat-e2e, publish-public]
     if: |
+      vars.RUN_SMOKE_TESTS_ANDROID != 'false' &&
       needs.bat-e2e.outputs.gate_passed == 'true' &&
       needs.build.result == 'success' &&
       needs.publish-public.result == 'success'
@@ -847,32 +884,40 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        if: vars.LT_USERNAME == ''
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Gradle
-        if: vars.LT_USERNAME == ''
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          # See cache-read-only commentary on the build job — same reasoning:
-          # let this run's first Gradle job populate the cache so MC only has
-          # to cooperate once per workflow instead of once per job.
-          cache-read-only: false
-
-      # ─── LambdaTest path ─────────────────────────────────────────────────
-      - name: Download prebuilt APKs (LambdaTest path)
-        if: vars.LT_USERNAME != ''
+      - name: Download prebuilt APKs
         uses: actions/download-artifact@v4
         with:
           name: android-debug-apk
           path: android-player/app/build/outputs/apk
 
+      - name: Authenticate to Google Cloud (Test Lab)
+        if: secrets.GCP_SA_KEY != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud CLI
+        if: secrets.GCP_SA_KEY != ''
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run Smoke on Firebase Test Lab
+        id: smoke-ftl
+        if: secrets.GCP_SA_KEY != ''
+        continue-on-error: true
+        uses: ./.github/actions/firebase-test-lab-espresso
+        with:
+          project-id:     ${{ env.FIREBASE_PROJECT_ID }}
+          app-apk:        android-player/app/build/outputs/apk/debug/app-debug.apk
+          test-apk:       android-player/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          annotation:     com.devopsdays.qoe.player.categories.Smoke
+          matrix-label:   "Android Smoke — Build #${{ github.run_number }}"
+          output-dir:     android-player/app/build/outputs/androidTest-results/connected
+          device:         ${{ vars.FTL_DEVICE_ANDROID || 'model=MediumPhone.arm,version=33,locale=en,orientation=portrait' }}
+          results-bucket: ${{ vars.FTL_RESULTS_BUCKET }}
+
       - name: Run Smoke on LambdaTest (real device)
         id: smoke-lt
-        if: vars.LT_USERNAME != ''
+        if: secrets.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
         continue-on-error: true
         uses: ./.github/actions/lambdatest-espresso
         with:
@@ -886,9 +931,26 @@ jobs:
           output-dir:     android-player/app/build/outputs/androidTest-results/connected
           region:         ${{ vars.LT_REGION || 'us' }}
 
-      # ─── Emulator path (KVM-accelerated x86_64 AVD on ubuntu-latest) ─────
+      - uses: actions/setup-java@v4
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
       - name: Enable KVM permissions
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -896,7 +958,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: AVD cache
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         uses: actions/cache@v4
         with:
           path: |
@@ -906,7 +970,9 @@ jobs:
 
       - name: Run Smoke tests on emulator
         id: smoke-emu
-        if: vars.LT_USERNAME == ''
+        if: |
+          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -965,11 +1031,21 @@ jobs:
           allure-tag:         "Smoke"
           allure-language:    "kotlin"
 
-      - name: Compute Smoke outcome (LT or emulator)
+      - name: Compute Smoke outcome (FTL, LT, or emulator)
         id: smoke
         if: always()
         run: |
-          if [ "${{ vars.LT_USERNAME }}" != "" ]; then
+          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+            FTL_EXIT="${{ steps.smoke-ftl.outputs.exit_code }}"
+            if [ "$FTL_EXIT" = "0" ]; then
+              OUT="${{ steps.smoke-ftl.outcome }}"
+            elif [ "$FTL_EXIT" = "2" ]; then
+              echo "::notice title=FTL fallback::Firebase Test Lab unavailable — used local emulator."
+              OUT="${{ steps.smoke-emu.outcome }}"
+            else
+              OUT="${{ steps.smoke-ftl.outcome }}"
+            fi
+          elif [ -n "${{ vars.LT_USERNAME }}" ]; then
             OUT="${{ steps.smoke-lt.outcome }}"
           else
             OUT="${{ steps.smoke-emu.outcome }}"
@@ -981,7 +1057,7 @@ jobs:
         uses: ./.github/actions/slack-stage-notify
         with:
           module-name:     ANDROID
-          stage-name:      "Smoke Tests${{ vars.LT_USERNAME != '' && ' on LambdaTest' || '' }}"
+          stage-name:      "Smoke Tests${{ secrets.GCP_SA_KEY != '' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
           stage-result:    ${{ steps.smoke.outputs.outcome }}
           duration:        ${{ env.SMOKE_DURATION }}
           report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/smoke
@@ -1472,7 +1548,7 @@ jobs:
           echo "| Firebase Internal | ${{ needs.publish-internal.outputs.distributed == 'true' && 'passed' || (needs.publish-internal.result == 'skipped' && 'skipped' || 'failed') }} |" >> $GITHUB_STEP_SUMMARY
           echo "| BAT Tests | ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'passed' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped (device unavailable)' || (needs.bat-e2e.result == 'skipped' && 'skipped (device lab availability)' || 'failed')) }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebase Public | ${{ needs.publish-public.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Smoke Tests | ${{ needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | ${{ vars.RUN_SMOKE_TESTS_ANDROID == 'false' && 'skipped (disabled)' || needs.smoke-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.head_ref || github.ref_name }}\` | **Commit:** \`${{ github.sha }}\` | **Duration:** ${{ env.TOTAL_DURATION }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1499,7 +1575,7 @@ jobs:
           STAGE7_NAME: Firebase Public
           STAGE7_RESULT: ${{ needs.publish-public.result }}
           STAGE8_NAME: Smoke Tests
-          STAGE8_RESULT: ${{ needs.smoke-e2e.result }}
+          STAGE8_RESULT: ${{ vars.RUN_SMOKE_TESTS_ANDROID == 'false' && 'skipped' || needs.smoke-e2e.result }}
           TOTAL_DURATION: ${{ env.TOTAL_DURATION }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}

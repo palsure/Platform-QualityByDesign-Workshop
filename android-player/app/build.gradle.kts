@@ -3,12 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// New Relic Mobile — instruments OkHttp, ANRs, native crashes; provides the
-// NewRelic facade used by MainActivity / QoECollector. The plugin registers
-// under the short id `newrelic`; classpath is loaded from the buildscript
-// block in the root project.
-apply(plugin = "newrelic")
-
 android {
     namespace = "com.devopsdays.qoe.player"
     compileSdk = 34
@@ -25,15 +19,6 @@ android {
         // running under the orchestrator.
         testInstrumentationRunnerArguments["clearPackageData"] = "true"
 
-        // New Relic Mobile application token. Read from the gradle property
-        // `newrelic.token` (e.g. ~/.gradle/gradle.properties) or the env var
-        // `NEW_RELIC_MOBILE_TOKEN`. Empty string when unset → agent stays
-        // disabled at runtime (see MainActivity.onCreate).
-        val nrToken: String = (project.findProperty("newrelic.token") as? String)
-            ?: System.getenv("NEW_RELIC_MOBILE_TOKEN")
-            ?: ""
-        buildConfigField("String", "NEWRELIC_TOKEN", "\"$nrToken\"")
-
         // Instrumented test stage filter: -PtestStage=bat|smoke|regression|all
         val testStage = (project.findProperty("testStage") as? String) ?: "all"
         when (testStage) {
@@ -47,8 +32,6 @@ android {
     }
 
     buildFeatures {
-        // Required so we can read `BuildConfig.NEWRELIC_TOKEN` at runtime.
-        // AGP 8 disables BuildConfig generation by default.
         buildConfig = true
     }
 
@@ -107,17 +90,14 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.3.1")
     implementation("androidx.media3:media3-common:1.3.1")
 
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     // Networking
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.10.1")
-
-    // New Relic Mobile — version must match the gradle plugin in the root
-    // build.gradle.kts; the plugin enforces this at configuration time.
-    implementation("com.newrelic.agent.android:android-agent:7.5.1")
 
     // ── JVM Unit Tests ────────────────────────────────────────────────────────
     testImplementation("junit:junit:4.13.2")

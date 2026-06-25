@@ -152,10 +152,42 @@ Update `android-player/firebase.json` with your App ID if deploying locally:
 
 ```
 Unit gate → Build APK → Publish internal (Firebase)
-         → BAT (device / emulator) → Public promotion (if BAT passes)
+         → BAT (Firebase Test Lab virtual device → emulator fallback)
+         → Public promotion (if BAT passes)
+         → Smoke (Firebase Test Lab → emulator fallback)
 ```
 
 Firebase publish is skipped when `FIREBASE_TOKEN` or `FIREBASE_APP_ID_ANDROID` is empty.
+
+### Firebase Test Lab (BAT / Smoke device lab)
+
+CI runs Espresso on **Firebase Test Lab virtual devices** first (free-tier friendly), then **falls back to the GitHub-hosted emulator** if Test Lab is unavailable (quota, auth, or no results).
+
+**Setup (one time in GCP):**
+
+1. Enable billing on the Firebase project (Spark free quotas still apply; Blaze adds minute-based free time).
+2. [Google Cloud Console](https://console.cloud.google.com/) → **IAM** → create a service account, e.g. `github-test-lab`.
+3. Grant roles:
+   - **Firebase Test Lab Admin** (or *Cloud Testing Service Account*)
+   - **Storage Admin** on the results bucket (or let CI create `gs://PROJECT-test-lab-results`)
+4. Create a JSON key → add as GitHub secret **`GCP_SA_KEY`**.
+
+**GitHub configuration:**
+
+| Name | Where | Notes |
+|---|---|---|
+| `GCP_SA_KEY` | Secret | Service account JSON |
+| `FIREBASE_PROJECT_ID` | Variable | Already used for App Distribution links |
+| `FTL_DEVICE_ANDROID` | Variable (optional) | Default `model=MediumPhone.arm,version=33,locale=en,orientation=portrait` |
+| `FTL_RESULTS_BUCKET` | Variable (optional) | Default `gs://PROJECT-test-lab-results` |
+
+**Free tier (Spark):** 10 virtual + 5 physical test runs per day. The pipeline uses **virtual devices only** by default to stay within the free quota.
+
+**Without `GCP_SA_KEY`:** BAT/Smoke use the local KVM emulator (same as before).
+
+**Disable Smoke tests:** set repository variable `RUN_SMOKE_TESTS_ANDROID=false` (Android) or `RUN_SMOKE_TESTS_IOS=false` (iOS). Smoke jobs are skipped and later stages (report, Firebase publish on iOS) continue.
+
+View runs: [Firebase Console → Test Lab](https://console.firebase.google.com/project/_/testlab/histories).
 
 ### Manual deploy
 

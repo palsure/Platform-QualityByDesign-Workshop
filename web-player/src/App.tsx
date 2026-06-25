@@ -11,26 +11,13 @@ import {
   getShowsBrowseRows,
   type Video,
 } from './data/catalog';
-import { parseDemoScenario } from './demo/scenarios';
 import './App.css';
 
-function parseScenarioFromUrl() {
-  const param = new URLSearchParams(window.location.search).get('scenario');
-  return param ? parseDemoScenario(param) : null;
-}
-
-// ── E2E bypass ─────────────────────────────────────────────────────
 function getE2EVideo(): { video: Video; autoPlay: boolean } | null {
   const params = new URLSearchParams(window.location.search);
   const autoPlay = params.get('e2e_autoplay') === '1' || params.get('e2e_autoplay') === 'true';
   if (!autoPlay) return null;
-
-  const scenarioParam = params.get('scenario');
-  const scenario      = parseDemoScenario(scenarioParam);
-
-  const match = CATALOG[0].videos[0];
-
-  return { video: { ...match, scenario }, autoPlay: true };
+  return { video: CATALOG[0].videos[0], autoPlay: true };
 }
 
 type AppPage = NavTab;
@@ -46,21 +33,19 @@ export default function App() {
   );
 
   const navigate = (page: AppPage) => setRoute({ page });
-  const goDetail   = (v: Video) => {
-    const scenarioOverride = parseScenarioFromUrl();
+  const goDetail = (v: Video) => {
     setRoute(r => ({
       page: 'detail',
-      video: scenarioOverride ? { ...v, scenario: scenarioOverride } : v,
+      video: v,
       returnTo: r.page === 'detail' ? 'home' : r.page,
     }));
   };
 
   const goPlay = (v: Video) => {
     document.documentElement.requestFullscreen?.().catch(() => {});
-    const scenarioOverride = parseScenarioFromUrl();
     setRoute(r => ({
       page: 'detail',
-      video: scenarioOverride ? { ...v, scenario: scenarioOverride } : v,
+      video: v,
       autoPlay: true,
       returnTo: r.page === 'detail' ? 'home' : r.page,
     }));
