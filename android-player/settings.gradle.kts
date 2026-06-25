@@ -23,5 +23,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "QoePlayer"
+rootProject.name = "StreamApp"
 include(":app")

@@ -1,5 +1,5 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
 /// Build Acceptance Tests — sanity gate that must pass before any deployment.
 ///

@@ -398,7 +398,7 @@ cd ios-player
 swift test
 ```
 
-Tests inside `Tests/QoePlayerTests/` are discovered and run automatically.
+Tests inside `Tests/StreamAppTests/` are discovered and run automatically.
 
 **Verbose output** (shows individual test case pass/fail):
 

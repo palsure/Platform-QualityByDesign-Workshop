@@ -2,22 +2,22 @@
 import PackageDescription
 
 let package = Package(
-    name: "QoePlayer",
+    name: "StreamApp",
     platforms: [
         .iOS(.v15)
     ],
     products: [
         .library(
-            name: "QoePlayer",
-            targets: ["QoePlayer"])
+            name: "StreamApp",
+            targets: ["StreamApp"])
     ],
     dependencies: [],
     targets: [
         .target(
-            name: "QoePlayer",
+            name: "StreamApp",
             dependencies: []),
         .testTarget(
-            name: "QoePlayerTests",
-            dependencies: ["QoePlayer"])
+            name: "StreamAppTests",
+            dependencies: ["StreamApp"])
     ]
 )

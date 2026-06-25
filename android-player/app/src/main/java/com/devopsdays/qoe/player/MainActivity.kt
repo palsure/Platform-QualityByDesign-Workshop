@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
         // Empty token = disabled — keeps local dev / espresso runs from spamming
         // a real NR account. We also disable on emulators just to be safe.
         val nrToken = BuildConfig.NEWRELIC_TOKEN
-        if (nrToken.isNotBlank()) {
+        if (nrToken.isNotBlank() && !BuildConfig.DEBUG) {
             try {
                 NewRelic.withApplicationToken(nrToken)
                     .withApplicationVersion(BuildConfig.VERSION_NAME)

@@ -1,5 +1,5 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
 /// Unit tests for QoEQualityCalculator.
 /// These tests are pure logic — no network, no AVFoundation, no UIKit.

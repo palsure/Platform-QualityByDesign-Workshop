@@ -137,7 +137,7 @@ The Web and API pipelines use Firebase Hosting (preview channel → live promoti
 ```
 ├── backend-api/                 # Spring Boot REST API + Flyway + Testcontainers
 ├── web-player/                  # React/Vite SPA + Playwright E2E
-├── ios-player/                  # SwiftPM library (QoePlayer) + SwiftUI demo app
+├── ios-player/                  # SwiftPM library (StreamApp) + SwiftUI demo app
 ├── android-player/              # Gradle (Kotlin DSL) Android app + Espresso
 ├── qoe-automation-tests/        # Maven/TestNG cross-platform suite
 ├── ops/

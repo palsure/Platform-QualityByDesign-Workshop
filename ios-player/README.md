@@ -1,6 +1,6 @@
 # iOS Player
 
-iOS video player module containing both a reusable Swift Package library (`QoePlayer`) and a runnable SwiftUI demo app.
+iOS video player module containing both a reusable Swift Package library (`StreamApp`) and a runnable SwiftUI demo app.
 
 ## Module architecture
 
@@ -9,13 +9,13 @@ The Swift Package exports the reusable `VideoPlayerViewController` + `QoECollect
 ```mermaid
 flowchart LR
   User((User))
-  subgraph SPM["📦 Swift Package — QoePlayer (library)"]
+  subgraph SPM["📦 Swift Package — StreamApp (library)"]
     direction TB
-    VC["Sources/QoePlayer/<br/>VideoPlayerViewController.swift<br/>(AVPlayer-backed UIKit VC)"]
-    Coll["Sources/QoePlayer/<br/>QoECollector.swift"]
-    QC["Sources/QoePlayer/<br/>QoEQualityCalculator.swift"]
-    Cat["Sources/QoePlayer/<br/>VideoCatalog.swift"]
-    Tests["Tests/QoePlayerTests/<br/>BAT · Smoke · Regression · Unit"]
+    VC["Sources/StreamApp/<br/>VideoPlayerViewController.swift<br/>(AVPlayer-backed UIKit VC)"]
+    Coll["Sources/StreamApp/<br/>QoECollector.swift"]
+    QC["Sources/StreamApp/<br/>QoEQualityCalculator.swift"]
+    Cat["Sources/StreamApp/<br/>VideoCatalog.swift"]
+    Tests["Tests/StreamAppTests/<br/>BAT · Smoke · Regression · Unit"]
   end
   subgraph App["📱 QoePlayerApp.xcodeproj — SwiftUI demo"]
     direction TB
@@ -38,13 +38,13 @@ flowchart LR
 
 ```
 ios-player/
-├── Package.swift                       # Swift Package (QoePlayer library + tests)
-├── Sources/QoePlayer/
+├── Package.swift                       # Swift Package (StreamApp library + tests)
+├── Sources/StreamApp/
 │   ├── QoECollector.swift              # Core metrics collector (UIKit)
 │   ├── QoEQualityCalculator.swift      # Quality scoring
 │   ├── VideoCatalog.swift              # Stream catalog used by tests
 │   └── VideoPlayerViewController.swift # AVPlayer-backed UIKit view controller
-├── Tests/QoePlayerTests/               # XCTest — BAT/Smoke/Regression/Unit
+├── Tests/StreamAppTests/               # XCTest — BAT/Smoke/Regression/Unit
 ├── QoePlayerApp/                       # SwiftUI demo app sources
 │   ├── QoePlayerAppApp.swift           # @main app
 │   ├── ContentView.swift               # Stream catalog list
@@ -56,7 +56,7 @@ ios-player/
 
 ## Library — Swift Package
 
-The `QoePlayer` package exposes `VideoPlayerViewController` and `QoECollector` for any iOS project via Swift Package Manager.
+The `StreamApp` package exposes `VideoPlayerViewController` and `QoECollector` for any iOS project via Swift Package Manager.
 
 ### Add as a dependency
 
@@ -71,7 +71,7 @@ Or in Xcode: **File → Add Package Dependencies → choose local path.**
 ### Usage
 
 ```swift
-import QoePlayer
+import StreamApp
 
 let playerVC = VideoPlayerViewController()
 playerVC.videoURL  = URL(string: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8")
@@ -85,7 +85,7 @@ present(playerVC, animated: true)
 ```bash
 cd ios-player
 swift test                                              # all
-swift test --filter QoePlayerTests.BATTests             # BAT only
+swift test --filter StreamAppTests.BATTests             # BAT only
 swift test --xunit-output ios-junit.xml                 # JUnit XML for CI
 ```
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
 /// Unit tests for the video catalog — pure data, no network or AVFoundation.
 final class VideoCatalogTests: XCTestCase {

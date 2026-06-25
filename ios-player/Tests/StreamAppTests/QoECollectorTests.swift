@@ -1,7 +1,7 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
-/// Unit tests for QoECollector (library version in Sources/QoePlayer/).
+/// Unit tests for QoECollector (library version in Sources/StreamApp/).
 /// Tests cover session ID format, buffering tracking, error tracking,
 /// bitrate tracking, and quality score evolution — all without network calls.
 final class QoECollectorTests: XCTestCase {

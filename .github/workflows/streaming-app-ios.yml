@@ -662,7 +662,7 @@ jobs:
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_IOS != ''
         run: |
           if command -v firebase &>/dev/null; then
-            firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
+            firebase appdistribution:distribute ios-player/.build/release/StreamApp \
               --app "${{ env.FIREBASE_APP_ID_IOS }}" \
               --token "${{ env.FIREBASE_TOKEN }}" \
               --groups internal-testers \
@@ -725,7 +725,7 @@ jobs:
         if: env.FIREBASE_TOKEN != '' && env.FIREBASE_APP_ID_IOS != ''
         run: |
           if command -v firebase &>/dev/null; then
-            firebase appdistribution:distribute ios-player/.build/release/QoePlayer \
+            firebase appdistribution:distribute ios-player/.build/release/StreamApp \
               --app "${{ env.FIREBASE_APP_ID_IOS }}" \
               --token "${{ env.FIREBASE_TOKEN }}" \
               --groups "${{ secrets.FIREBASE_TESTERS || 'external-testers' }}" \

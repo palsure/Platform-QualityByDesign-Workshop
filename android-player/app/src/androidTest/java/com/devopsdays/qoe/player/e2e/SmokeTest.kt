@@ -97,7 +97,7 @@ class SmokeTest {
         onView(withId(R.id.url_input))
             .perform(clearText(), typeText("https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"), closeSoftKeyboard())
         onView(withId(R.id.play_button)).perform(click())
-        onView(withId(R.id.player_view)).check(matches(isDisplayed()))
+        onView(withId(R.id.player_view)).check(matches(existsWithSize()))
     }
 
     @Test

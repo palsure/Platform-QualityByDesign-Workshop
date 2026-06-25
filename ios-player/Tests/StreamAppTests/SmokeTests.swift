@@ -1,5 +1,5 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
 /// Smoke Tests — broader coverage run after BAT passes.
 ///

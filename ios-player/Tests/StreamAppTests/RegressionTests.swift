@@ -1,5 +1,5 @@
 import XCTest
-@testable import QoePlayer
+@testable import StreamApp
 
 /// Regression Tests — edge cases, boundary values, and guards against known issues.
 ///

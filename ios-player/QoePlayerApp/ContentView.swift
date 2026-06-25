@@ -64,7 +64,7 @@ struct ContentView: View {
                     .padding(.vertical, 6)
                 }
             }
-            .navigationTitle("QoE Player")
+            .navigationTitle("StreamApp")
             .navigationBarTitleDisplayMode(.large)
             .fullScreenCover(isPresented: $isPlaying) {
                 if let video = selectedVideo {
