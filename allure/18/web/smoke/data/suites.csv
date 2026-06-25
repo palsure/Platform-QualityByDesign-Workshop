@@ -1,0 +1,5 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"broken","Thu Jun 25 14:45:15 UTC 2026","Thu Jun 25 14:46:45 UTC 2026","90483","chromium","playback.spec.ts","Playback @Smoke","","","player toggle pauses and resumes playback",""
+"passed","Thu Jun 25 14:45:15 UTC 2026","Thu Jun 25 14:45:17 UTC 2026","2312","chromium","navigation.spec.ts","Navigation @Smoke","","","logo returns to home from Movies tab",""
+"passed","Thu Jun 25 14:45:15 UTC 2026","Thu Jun 25 14:45:19 UTC 2026","4131","chromium","playback.spec.ts","Playback @Smoke","","","video starts playing after pressing Play",""
+"failed","Thu Jun 25 14:45:15 UTC 2026","Thu Jun 25 14:45:17 UTC 2026","2844","chromium","navigation.spec.ts","Navigation @Smoke","","","Movies tab shows browse rows with playable tiles",""
