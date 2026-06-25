@@ -45,7 +45,7 @@ name: Streaming App — Android
 # bat-e2e and smoke-e2e try device labs in this order:
 #
 #   1. Firebase Test Lab (virtual device, free-tier friendly)
-#        When secrets.GCP_SA_KEY is set — runs on MediumPhone.arm API 33.
+#        When GCP_SA_KEY secret is set — runs on MediumPhone.arm API 33.
 #        If the lab is unavailable (quota, auth, no results) the job falls
 #        back to the local KVM emulator automatically.
 #
@@ -60,7 +60,7 @@ name: Streaming App — Android
 # still block public promotion.
 #
 # Required for Firebase Test Lab:
-#   secrets.GCP_SA_KEY         — GCP service account JSON (Firebase Test Lab Admin)
+#   secrets.GCP_SA_KEY       — GCP service account JSON (Firebase Test Lab Admin)
 #   vars.FIREBASE_PROJECT_ID   — Firebase / GCP project ID
 # Optional:
 #   vars.FTL_DEVICE_ANDROID    — Device spec (default MediumPhone.arm API 33)
@@ -133,6 +133,8 @@ env:
   # Secrets get masked in URL tokens, so we use the project ID (which
   # is already public Firebase metadata) as the safe URL anchor.
   FIREBASE_PROJECT_ID:      ${{ vars.FIREBASE_PROJECT_ID }}
+  # Workflow env bridge — secrets cannot be referenced in step/job `if:` expressions.
+  GCP_SA_KEY:               ${{ secrets.GCP_SA_KEY }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -540,18 +542,18 @@ jobs:
 
       # ─── Firebase Test Lab (virtual device — free tier) ──────────────────
       - name: Authenticate to Google Cloud (Test Lab)
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ env.GCP_SA_KEY }}
 
       - name: Setup gcloud CLI
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Run BAT on Firebase Test Lab
         id: bat-ftl
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         continue-on-error: true
         uses: ./.github/actions/firebase-test-lab-espresso
         with:
@@ -567,7 +569,7 @@ jobs:
       # ─── LambdaTest path (legacy — only when FTL credentials absent) ─────
       - name: Run BAT on LambdaTest (real device)
         id: bat-lt
-        if: secrets.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
+        if: env.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
         continue-on-error: true
         uses: ./.github/actions/lambdatest-espresso
         with:
@@ -584,23 +586,23 @@ jobs:
       # ─── Emulator path (primary when no cloud creds, or FTL fallback) ────
       - uses: actions/setup-java@v4
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Gradle
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         uses: gradle/actions/setup-gradle@v3
         with:
           cache-read-only: false
       - name: Enable KVM permissions
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         run: |
           # ubuntu-latest exposes /dev/kvm but the runner user needs the
           # right udev rule to access it without sudo. Canonical setup
@@ -613,8 +615,8 @@ jobs:
 
       - name: AVD cache
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         id: avd-cache
         uses: actions/cache@v4
         with:
@@ -628,8 +630,8 @@ jobs:
 
       - name: Create AVD snapshot (cache miss only)
         if: |
-          ((secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-           (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')) &&
+          ((env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+           (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')) &&
           steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -650,8 +652,8 @@ jobs:
       - name: Run BAT tests on emulator
         id: bat-emu
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.bat-ftl.outputs.exit_code == '2')
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -725,8 +727,8 @@ jobs:
         uses: ./.github/actions/slack-stage-notify
         with:
           module-name:     ANDROID
-          stage-name:      "BAT (Build Acceptance Tests)${{ secrets.GCP_SA_KEY != '' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
-          stage-result:    ${{ secrets.GCP_SA_KEY != '' && (steps.bat-ftl.outputs.exit_code == '2' && steps.bat-emu.outcome || steps.bat-ftl.outcome) || (vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome) }}
+          stage-name:      "BAT (Build Acceptance Tests)${{ vars.USE_FIREBASE_TEST_LAB == 'true' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
+          stage-result:    ${{ vars.USE_FIREBASE_TEST_LAB == 'true' && (steps.bat-ftl.outputs.exit_code == '2' && steps.bat-emu.outcome || steps.bat-ftl.outcome) || (vars.LT_USERNAME != '' && steps.bat-lt.outcome || steps.bat-emu.outcome) }}
           duration:        ${{ env.BAT_DURATION }}
           report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/bat
           thread-ts:       ${{ needs.notify-start.outputs.thread_ts }}
@@ -740,7 +742,7 @@ jobs:
         run: |
           set -uo pipefail
           # Pick the outcome from whichever path actually ran.
-          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+          if [ -n "$GCP_SA_KEY" ]; then
             FTL_EXIT="${{ steps.bat-ftl.outputs.exit_code }}"
             if [ "$FTL_EXIT" = "0" ]; then
               BAT="${{ steps.bat-ftl.outcome }}"
@@ -891,18 +893,18 @@ jobs:
           path: android-player/app/build/outputs/apk
 
       - name: Authenticate to Google Cloud (Test Lab)
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ env.GCP_SA_KEY }}
 
       - name: Setup gcloud CLI
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Run Smoke on Firebase Test Lab
         id: smoke-ftl
-        if: secrets.GCP_SA_KEY != ''
+        if: env.GCP_SA_KEY != ''
         continue-on-error: true
         uses: ./.github/actions/firebase-test-lab-espresso
         with:
@@ -917,7 +919,7 @@ jobs:
 
       - name: Run Smoke on LambdaTest (real device)
         id: smoke-lt
-        if: secrets.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
+        if: env.GCP_SA_KEY == '' && vars.LT_USERNAME != ''
         continue-on-error: true
         uses: ./.github/actions/lambdatest-espresso
         with:
@@ -933,24 +935,24 @@ jobs:
 
       - uses: actions/setup-java@v4
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Gradle
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         uses: gradle/actions/setup-gradle@v3
         with:
           cache-read-only: false
 
       - name: Enable KVM permissions
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -959,8 +961,8 @@ jobs:
 
       - name: AVD cache
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         uses: actions/cache@v4
         with:
           path: |
@@ -971,8 +973,8 @@ jobs:
       - name: Run Smoke tests on emulator
         id: smoke-emu
         if: |
-          (secrets.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
-          (secrets.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
+          (env.GCP_SA_KEY == '' && vars.LT_USERNAME == '') ||
+          (env.GCP_SA_KEY != '' && steps.smoke-ftl.outputs.exit_code == '2')
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -1035,7 +1037,7 @@ jobs:
         id: smoke
         if: always()
         run: |
-          if [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+          if [ -n "$GCP_SA_KEY" ]; then
             FTL_EXIT="${{ steps.smoke-ftl.outputs.exit_code }}"
             if [ "$FTL_EXIT" = "0" ]; then
               OUT="${{ steps.smoke-ftl.outcome }}"
@@ -1057,7 +1059,7 @@ jobs:
         uses: ./.github/actions/slack-stage-notify
         with:
           module-name:     ANDROID
-          stage-name:      "Smoke Tests${{ secrets.GCP_SA_KEY != '' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
+          stage-name:      "Smoke Tests${{ vars.USE_FIREBASE_TEST_LAB == 'true' && ' on Firebase Test Lab' || (vars.LT_USERNAME != '' && ' on LambdaTest' || '') }}"
           stage-result:    ${{ steps.smoke.outputs.outcome }}
           duration:        ${{ env.SMOKE_DURATION }}
           report-url:      https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android/smoke
