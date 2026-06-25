@@ -1,0 +1,5 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"passed","Thu Jun 25 13:39:20 UTC 2026","Thu Jun 25 13:39:20 UTC 2026","37","","Video Catalog API — E2E","","com.devopsdays.qoe.api.e2e.VideoApiE2EIT","getVideo_notFound","[BAT] GET /videos/{id} returns 404 for unknown id",""
+"passed","Thu Jun 25 13:39:20 UTC 2026","Thu Jun 25 13:39:20 UTC 2026","67","","Video Catalog API — E2E","","com.devopsdays.qoe.api.e2e.VideoApiE2EIT","createVideo_success","[BAT] POST /videos creates video and returns 201",""
+"passed","Thu Jun 25 13:39:18 UTC 2026","Thu Jun 25 13:39:20 UTC 2026","2049","","Video Catalog API — E2E","","com.devopsdays.qoe.api.e2e.VideoApiE2EIT","listVideos_returnsNonEmptyCatalog","[BAT] GET /videos returns 200 with at least one video",""
+"passed","Thu Jun 25 13:39:20 UTC 2026","Thu Jun 25 13:39:20 UTC 2026","398","","Video Catalog API — E2E","","com.devopsdays.qoe.api.e2e.VideoApiE2EIT","getVideo_returnsVideoDetails","[BAT] GET /videos/{id} returns 200 with correct fields",""
