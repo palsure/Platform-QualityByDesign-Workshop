@@ -125,6 +125,8 @@ permissions:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests == true }}
+  SKIP_BAT: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_bat == true }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
   # Exposed at workflow level so the publish-internal / publish-public
@@ -185,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [notify-start]
-    if: inputs.skip_tests != true
+    if: env.SKIP_TESTS != 'true'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -282,7 +284,7 @@ jobs:
           QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
         run: |
           UNIT="${{ steps.unit.outcome }}"
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
 
           if [ "$SKIP" = "true" ]; then
             echo "⚡ Hotfix mode — unit gate bypassed"
@@ -404,7 +406,7 @@ jobs:
     needs: [notify-start, unit-tests, lint, devsecops]
     if: |
       always() &&
-      inputs.skip_tests != true &&
+      env.SKIP_TESTS != 'true' &&
       needs.devsecops.outputs.passed == 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.lint.result == 'success'
@@ -517,8 +519,8 @@ jobs:
     # of the pipeline (Smoke skipped, public Firebase deploy on Unit gate
     # alone) follows the existing soft-gate logic.
     if: |
-      inputs.skip_tests != true &&
-      inputs.skip_bat   != true &&
+      env.SKIP_TESTS != 'true' &&
+      env.SKIP_BAT   != 'true' &&
       vars.SKIP_BAT     != 'true' &&
       (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-bat]')) &&
       (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-bat]')) &&
@@ -747,7 +749,7 @@ jobs:
           else
             BAT="${{ steps.bat-emu.outcome }}"
           fi
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
           NO_LAB="${{ vars.NO_DEVICE_LAB }}"
           RESULTS_DIR="android-player/app/build/outputs/androidTest-results/connected"
 
@@ -833,11 +835,11 @@ jobs:
     timeout-minutes: 5
     needs: [notify-start, build, unit-tests, publish-internal]
     if: |
-      (inputs.skip_bat == true ||
+      (env.SKIP_BAT == 'true' ||
        vars.SKIP_BAT == 'true' ||
        (github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-bat]')) ||
        (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[skip-bat]'))) &&
-      inputs.skip_tests != true &&
+      env.SKIP_TESTS != 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.publish-internal.outputs.distributed == 'true'
     steps:
@@ -1233,7 +1235,7 @@ jobs:
     # Unit gate passes. We deliberately do NOT wait for BAT/Smoke here —
     if: |
       always() &&
-      inputs.skip_tests != true &&
+      env.SKIP_TESTS != 'true' &&
       needs.devsecops.outputs.passed == 'true' &&
       needs.build.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true'
