@@ -2,6 +2,8 @@
 
 React / TypeScript HLS streaming app (StreamApp) with catalog browsing, video playback, and Playwright E2E tests.
 
+_Validation: Web module PR pipeline (Vitest · Playwright BAT/smoke · DevSecOps · ephemeral · PR comment)._
+
 ## Tech stack
 
 | Layer | Technology |

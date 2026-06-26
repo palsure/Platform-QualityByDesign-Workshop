@@ -2,6 +2,8 @@
 
 iOS video player module containing a reusable Swift Package library (`StreamApp`) and a runnable SwiftUI demo app (`QoePlayerApp`).
 
+_Validation: iOS module PR pipeline (Swift unit · BAT · smoke · PR comment)._
+
 ## Module architecture
 
 ```mermaid

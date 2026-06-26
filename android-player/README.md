@@ -2,6 +2,8 @@
 
 Kotlin Android app using Media3 / ExoPlayer for HLS playback and catalog navigation.
 
+_Validation: Android module PR pipeline (unit · lint · BAT · smoke · PR comment)._
+
 ## Tech stack
 
 | Layer | Technology |
