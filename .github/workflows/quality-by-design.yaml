@@ -113,7 +113,6 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
   promote:
     name: Promotion Gate

@@ -24,8 +24,6 @@ on:
     secrets:
       SLACK_BOT_TOKEN:
         required: false
-      GITHUB_TOKEN:
-        required: false
     outputs:
       smoke_passed:
         value: ${{ jobs.validate.outputs.smoke_passed }}
@@ -42,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     outputs:
       smoke_passed: ${{ steps.smoke-gate.outputs.passed }}
       perf_passed: ${{ steps.perf-gate.outputs.passed }}
@@ -176,7 +174,7 @@ jobs:
         with:
           source-dir:        ephemeral-k6-report
           pages-destination: reports/${{ github.run_number }}/${{ inputs.module-name != '' && inputs.module-name || 'platform' }}/ephemeral
-          github-token:      ${{ secrets.GITHUB_TOKEN }}
+          github-token:      ${{ github.token }}
 
       - name: Calculate duration
         if: always()

@@ -692,7 +692,6 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. PROMOTE LIVE — after BAT + DevSecOps + ephemeral gates pass
