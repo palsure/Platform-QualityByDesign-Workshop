@@ -131,7 +131,9 @@ def main() -> int:
     stage        = os.environ.get("STAGE_NAME", "Stage")
     junit_dir    = os.environ.get("JUNIT_DIR", "")
     pw_json      = os.environ.get("PLAYWRIGHT_JSON", "")
-    report_url   = os.environ.get("REPORT_URL", "")
+    report_url   = os.environ.get("REPORT_URL", "").strip()
+    if report_url and not report_url.endswith("/"):
+        report_url += "/"
     link_label   = os.environ.get("LINK_LABEL", ":bar_chart: View Report")
     stage_result = os.environ.get("STAGE_RESULT", "unknown")
     thread_ts    = os.environ.get("THREAD_TS", "")

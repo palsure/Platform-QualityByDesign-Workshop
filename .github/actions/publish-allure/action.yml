@@ -35,6 +35,11 @@ inputs:
     required: false
     default: ''
 
+outputs:
+  report_url:
+    description: 'Published report URL (trailing slash) when deploy succeeds'
+    value: ${{ steps.deploy.outputs.report_url }}
+
 runs:
   using: composite
   steps:
@@ -121,6 +126,7 @@ runs:
     #   • we retry up to 6 times with exponential backoff + random jitter so the
     #     loser pulls the latest tip and re-pushes successfully.
     - name: Deploy Allure to gh-pages (with retry & jitter)
+      id: deploy
       shell: bash
       env:
         GH_TOKEN:      ${{ inputs.github-token }}
@@ -190,13 +196,32 @@ runs:
           git commit -q -m "Allure: ${TARGET_FOLDER} (build #${RUN_NUMBER}, attempt ${attempt}) [skip ci]"
 
           if git push --quiet origin gh-pages 2>&1; then
-            echo "✅ Deployed: https://$(echo "$REPO" | cut -d/ -f1).github.io/$(echo "$REPO" | cut -d/ -f2)/${TARGET_FOLDER}/"
+            echo "✅ Pushed to gh-pages: ${TARGET_FOLDER}"
             SUCCESS=1
             break
           else
             echo "⚠️  Push rejected (likely concurrent push from another workflow) — will retry"
           fi
         done
+
+        OWNER="$(echo "$REPO" | cut -d/ -f1)"
+        NAME="$(echo "$REPO" | cut -d/ -f2)"
+        REPORT_URL="https://${OWNER}.github.io/${NAME}/${TARGET_FOLDER}/"
+
+        if [ "$SUCCESS" -eq 1 ]; then
+          echo "report_url=${REPORT_URL}" >> "$GITHUB_OUTPUT"
+          echo "Waiting for GitHub Pages to serve ${REPORT_URL}"
+          for i in $(seq 1 36); do
+            CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$REPORT_URL" 2>/dev/null || echo "000")
+            if [ "$CODE" = "200" ] || [ "$CODE" = "301" ]; then
+              echo "✅ Report reachable (HTTP ${CODE})"
+              exit 0
+            fi
+            echo "… not ready yet (${i}/36, HTTP ${CODE})"
+            sleep 5
+          done
+          echo "::warning::Report pushed to gh-pages but GitHub Pages CDN is not serving it yet — link may 404 for a few minutes"
+        fi
 
         if [ "$SUCCESS" -ne 1 ]; then
           echo "::warning title=Allure publish failed::Could not push Allure report to gh-pages after ${MAX_ATTEMPTS} attempts (likely persistent push contention). The test results are still valid; only the hosted report is missing."

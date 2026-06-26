@@ -153,6 +153,7 @@ jobs:
           python3 .github/scripts/junit_to_summary.py api backend-api/build/test-results \
             || echo '{"platform":"api","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
       - name: Generate & deploy API acceptance Allure report
+        id: api-report
         if: always()
         uses: ./.github/actions/publish-allure
         with:
@@ -186,7 +187,7 @@ jobs:
           duration:         ${{ env.API_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        backend-api/build/test-results
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/api
+          report-url:       ${{ steps.api-report.outputs.report_url }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -221,6 +222,7 @@ jobs:
             || echo '{"platform":"web-vitest","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
           mv platform-summary.json web-merge/vitest.json
       - name: Generate & deploy Web Vitest Allure report
+        id: vitest-report
         if: always()
         uses: ./.github/actions/publish-allure
         with:
@@ -254,7 +256,7 @@ jobs:
           duration:         ${{ env.VITEST_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        web-player/test-results
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/web-vitest
+          report-url:       ${{ steps.vitest-report.outputs.report_url }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -284,6 +286,7 @@ jobs:
             || echo '{"platform":"web","passed":0,"failed":1,"skipped":0,"total":1}' > playwright-summary.json
           mv playwright-summary.json web-merge/playwright.json
       - name: Generate & deploy Web Playwright Allure report
+        id: e2e-report
         if: always()
         uses: ./.github/actions/publish-allure
         with:
@@ -312,7 +315,7 @@ jobs:
           duration:         ${{ env.PLAYWRIGHT_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           playwright-json:  web-player/playwright-results-e2e.json
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/web-e2e
+          report-url:       ${{ steps.e2e-report.outputs.report_url }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -364,6 +367,7 @@ jobs:
           python3 .github/scripts/junit_to_summary.py android android-player \
             || echo '{"platform":"android","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
       - name: Generate & deploy Android acceptance Allure report
+        id: android-report
         if: always()
         uses: ./.github/actions/publish-allure
         with:
@@ -397,7 +401,7 @@ jobs:
           duration:         ${{ env.ANDROID_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        android-player/app/build/test-results
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/android
+          report-url:       ${{ steps.android-report.outputs.report_url }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -428,6 +432,7 @@ jobs:
           python3 .github/scripts/swift_log_to_summary.py ios-player/swift-test.log \
             || echo '{"platform":"ios","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
       - name: Generate & deploy iOS acceptance Allure report
+        id: ios-report
         if: always()
         uses: ./.github/actions/publish-allure
         with:
@@ -461,7 +466,7 @@ jobs:
           duration:         ${{ env.IOS_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        ios-player/test-results
-          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/ios
+          report-url:       ${{ steps.ios-report.outputs.report_url }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
