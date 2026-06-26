@@ -1,5 +1,7 @@
 # Architecture — Quality by Design (DevSecOps + Test Automation in CI/CD)
 
+> **Full application + pipeline diagrams:** [`APP-PIPELINE-ARCHITECTURE.md`](APP-PIPELINE-ARCHITECTURE.md) — runtime stack, Docker Compose, per-module CI/CD job graphs, golden path, and optional integrations.
+
 ## System overview
 
 ```mermaid

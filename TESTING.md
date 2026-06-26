@@ -444,19 +444,38 @@ open build/reports/tests/index.html
 
 Full-stack checks used by CI ephemeral validation. Requires the Docker stack (`docker compose up -d`).
 
-### 5.1 Smoke (curl + jq)
+### 5.1 Smoke (curl)
+
+From the **repo root**, with the Docker stack running:
 
 ```bash
-platform/tests/smoke/smoke-test.sh http://localhost:8080 http://localhost:3000
+docker compose up -d
+
+API_BASE=http://localhost:8080 WEB_BASE=http://localhost:3000 \
+  bash platform/tests/smoke/smoke-test.sh
 ```
+
+The script reads **`API_BASE` and `WEB_BASE` env vars** (not positional arguments).
 
 ### 5.2 Load (k6)
 
 ```bash
-k6 run platform/tests/load/load-test.js \
-  -e API_BASE_URL=http://localhost:8080 \
-  -e WEB_BASE_URL=http://localhost:3000
+API_BASE=http://localhost:8080 \
+  k6 run platform/tests/load/load-test.js
 ```
+
+k6 enforces thresholds in `load-test.js` (`error rate < 1%`, `p95 < 800ms`). Requires [k6](https://k6.io/) (`brew install k6`).
+
+### 5.3 Performance gate script (optional local demo)
+
+`quality-gate.sh` checks **observed** metrics against caps. Set both `ERROR_RATE` / `P95_MS` (from k6) and `MAX_*` thresholds:
+
+```bash
+MAX_ERROR_RATE=0.01 MAX_P95_MS=800 ERROR_RATE=0 P95_MS=200 \
+  bash platform/scripts/quality-gate.sh local
+```
+
+In CI, the perf gate uses k6's built-in thresholds (see `reusable-ephemeral-validation.yaml`).
 
 ---
 

@@ -10,38 +10,33 @@ React / TypeScript HLS streaming app (StreamApp) with catalog browsing, video pl
 | Video | HLS.js |
 | Build | Vite |
 | Unit tests | Vitest (jsdom) |
-| E2E tests | Playwright (Chromium + throttle profiles) |
+| E2E tests | Playwright (Chromium) |
 | Reports | Allure |
-| Observability | New Relic Browser RUM |
 
 ## Module architecture
 
-The player is intentionally simple: catalog pages (`BrowsePage`, `DetailPage`) feed a `VideoPlayer` component that wraps `<video>` and HLS.js. A hidden E2E bridge (`window.__QOE_DEMO__`) exposes playback state to Playwright; optional fault injection via `?scenario=` supports CI gate tests.
+Catalog pages (`BrowsePage`, `DetailPage`, `HomePage`) feed a `VideoPlayer` component that wraps `<video>` and HLS.js. Playwright BAT/Smoke tests use `data-testid` selectors and the `<video>` element API.
 
 ```mermaid
 flowchart LR
   User((User))
   subgraph App["web-player/src"]
-    direction TB
-    Page["pages/<br/>BrowsePage · DetailPage"]
-    VP["components/VideoPlayer.tsx<br/>HLS.js + &lt;video&gt; element"]
-    Bridge["demo/qoeDemoBridge.ts<br/>E2E snapshot + controls"]
-    NR["services/newrelic.ts<br/>Browser RUM bootstrap"]
+    Pages["pages/ · components/"]
+    Cat["data/catalog.ts"]
+    VP["VideoPlayer.tsx"]
   end
-  API[["Backend API<br/>:8080"]]
-  NRC[["New Relic"]]
+  HLS["External HLS streams"]
 
-  User --> Page --> VP
-  VP --> Bridge
-  VP --> NR --> NRC
-  Page --> API
+  User --> Pages --> VP
+  Cat --> Pages
+  VP --> HLS
 ```
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - npm 9+
-- Backend API running on port 8080 (see root [`docker-compose.yml`](../docker-compose.yml))
+- Optional: Docker stack for `e2e:docker` (`docker compose up -d`)
 
 ## Setup
 
@@ -50,63 +45,49 @@ cd web-player
 npm install
 ```
 
-A local `.env` (Vite reads `VITE_*` only):
-
-```env
-VITE_API_URL=http://localhost:8080/api/v1
-```
-
-> In Docker the API URL is injected at build time via the `VITE_API_URL` build arg.
-
 ## Running the app
 
 ```bash
-npm run dev    # http://localhost:5173 (Vite dev server)
+npm run dev    # http://localhost:5173
 ```
 
-The Docker image is served by nginx on **http://localhost:3000** when the full stack is up (`docker compose up -d`).
+Docker/nginx: **http://localhost:3000** when the full stack is up.
 
 ## Tests
 
 ### Unit (Vitest)
 
 ```bash
-npm test               # one-shot run, JUnit XML at test-results/vitest-junit.xml
-npm run test:watch     # re-runs on file change
+npm test
+npm run allure:serve:unit    # http://127.0.0.1:5050
 ```
 
 ### E2E (Playwright)
 
 ```bash
-npm run e2e:install        # install Chromium (first time only)
-npm run e2e                # against `npm run dev`
-npm run e2e:throttle       # slow network profile (forces buffering)
-npm run e2e:all            # all profiles
+npm run e2e:install          # first time — Chromium
 
-# Against the running Docker stack
-npm run e2e:docker
-npm run e2e:docker:throttle
-npm run e2e:docker:all
+npm run e2e:bat              # BAT (@BAT) — local Vite preview
+npm run e2e:smoke            # Smoke (@Smoke)
 
-# Interactive
-npm run e2e:headed         # visible browser
-npm run e2e:debug          # Playwright inspector
-npm run e2e:ui             # Playwright UI mode
+# Against Docker web player
+PLAYWRIGHT_BASE_URL=http://localhost:3000 npm run e2e:bat
+
+npm run allure:serve:bat     # http://127.0.0.1:5051
 ```
 
 ### Reports
 
 ```bash
-npm run allure:report     # generate + open Allure
-npm run allure:generate   # generate only
-npm run allure:open       # open existing
-npm run report            # Playwright HTML report
+npm run allure:unit          # generate unit HTML
+npm run allure:bat           # generate BAT HTML
+npm run report               # Playwright HTML (e2e stage)
 ```
 
 ## Build
 
 ```bash
-npm run build     # production bundle in dist/
+npm run build
 ```
 
 ## Project structure
@@ -114,25 +95,11 @@ npm run build     # production bundle in dist/
 ```
 web-player/
 ├── src/
-│   ├── components/      # VideoPlayer, Navbar, …
-│   ├── pages/           # BrowsePage, DetailPage
-│   ├── services/        # newrelic, metrics collector (internal)
-│   └── App.tsx, main.tsx
-├── e2e/                 # Playwright specs (BAT + Smoke tagged)
-├── playwright.config.ts # chromium + throttle profiles, workers=4
-├── vite.config.ts
-├── Dockerfile           # multi-stage: build → nginx
+│   ├── components/      # VideoPlayer, Navbar, Carousel, …
+│   ├── pages/           # HomePage, BrowsePage, DetailPage
+│   └── data/            # catalog.ts, catalog-images.ts
+├── e2e/                 # Playwright specs (@BAT · @Smoke)
+├── playwright.config.ts
+├── Dockerfile
 └── package.json
 ```
-
-## Docker
-
-```bash
-docker build -t streamapp-web-player -f web-player/Dockerfile .
-# Or just bring up the full stack:
-docker compose up -d
-```
-
-Served by nginx on **http://localhost:3000**.
-
-_(CI pipeline validation: documentation-only edit on branch `demo/actions-pipeline-smoke`.)_
