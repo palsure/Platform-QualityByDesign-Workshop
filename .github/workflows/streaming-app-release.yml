@@ -14,6 +14,9 @@ name: Streaming App — Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   QUALITY_GATE_THRESHOLD: '80'
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -149,6 +152,18 @@ jobs:
         run: |
           python3 .github/scripts/junit_to_summary.py api backend-api/build/test-results \
             || echo '{"platform":"api","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - name: Generate & deploy API acceptance Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Release — API Acceptance"
+          results-src:        backend-api/build/allure-results/e2e
+          pages-destination:  allure/${{ github.run_number }}/release/api
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Streaming API"
+          allure-feature:     "Acceptance E2E"
+          allure-tag:         "Acceptance"
+          allure-language:    "java"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -171,6 +186,7 @@ jobs:
           duration:         ${{ env.API_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        backend-api/build/test-results
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/api
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -204,6 +220,18 @@ jobs:
           python3 .github/scripts/junit_to_summary.py web-vitest web-player/test-results \
             || echo '{"platform":"web-vitest","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
           mv platform-summary.json web-merge/vitest.json
+      - name: Generate & deploy Web Vitest Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Release — Web Vitest"
+          results-src:        web-player/allure-results/unit
+          pages-destination:  allure/${{ github.run_number }}/release/web-vitest
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Web Player"
+          allure-feature:     "Vitest Unit"
+          allure-tag:         "Acceptance"
+          allure-language:    "typescript"
       - name: Calculate Vitest duration
         if: always()
         run: |
@@ -226,6 +254,7 @@ jobs:
           duration:         ${{ env.VITEST_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        web-player/test-results
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/web-vitest
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -254,6 +283,18 @@ jobs:
           python3 .github/scripts/playwright_to_summary.py web-player/playwright-results-e2e.json \
             || echo '{"platform":"web","passed":0,"failed":1,"skipped":0,"total":1}' > playwright-summary.json
           mv playwright-summary.json web-merge/playwright.json
+      - name: Generate & deploy Web Playwright Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Release — Web Playwright E2E"
+          results-src:        web-player/allure-results/e2e
+          pages-destination:  allure/${{ github.run_number }}/release/web-e2e
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Web Player"
+          allure-feature:     "Playwright E2E"
+          allure-tag:         "Acceptance"
+          allure-language:    "typescript"
       - name: Calculate Playwright duration
         if: always()
         run: |
@@ -271,6 +312,7 @@ jobs:
           duration:         ${{ env.PLAYWRIGHT_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           playwright-json:  web-player/playwright-results-e2e.json
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/web-e2e
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -321,6 +363,18 @@ jobs:
         run: |
           python3 .github/scripts/junit_to_summary.py android android-player \
             || echo '{"platform":"android","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - name: Generate & deploy Android acceptance Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Release — Android Acceptance"
+          results-src:        android-player/app/build/test-results/testDebugUnitTest
+          pages-destination:  allure/${{ github.run_number }}/release/android
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "Android Player"
+          allure-feature:     "Unit Tests"
+          allure-tag:         "Acceptance"
+          allure-language:    "kotlin"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -343,6 +397,7 @@ jobs:
           duration:         ${{ env.ANDROID_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        android-player/app/build/test-results
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/android
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -372,6 +427,18 @@ jobs:
         run: |
           python3 .github/scripts/swift_log_to_summary.py ios-player/swift-test.log \
             || echo '{"platform":"ios","passed":0,"failed":1,"skipped":0,"total":1}' > platform-summary.json
+      - name: Generate & deploy iOS acceptance Allure report
+        if: always()
+        uses: ./.github/actions/publish-allure
+        with:
+          stage-title:        "Release — iOS Acceptance"
+          results-src:        ios-player/test-results
+          pages-destination:  allure/${{ github.run_number }}/release/ios
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          allure-epic:        "iOS Player"
+          allure-feature:     "Swift Tests"
+          allure-tag:         "Acceptance"
+          allure-language:    "swift"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -394,6 +461,7 @@ jobs:
           duration:         ${{ env.IOS_DURATION }}
           thread-ts:        ${{ needs.notify-start.outputs.thread_ts }}
           junit-dir:        ios-player/test-results
+          report-url:       https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/release/ios
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 

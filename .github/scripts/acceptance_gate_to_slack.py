@@ -26,6 +26,38 @@ from pathlib import Path
 
 PASS_THRESHOLD = float(os.environ.get("QUALITY_GATE_THRESHOLD", "80"))
 
+# Sub-paths under allure/{run_number}/ on GitHub Pages for release acceptance.
+RELEASE_REPORT_PATHS: dict[str, str | list[tuple[str, str]]] = {
+    "api": "release/api",
+    "web": [
+        ("Vitest", "release/web-vitest"),
+        ("E2E", "release/web-e2e"),
+    ],
+    "android": "release/android",
+    "ios": "release/ios",
+}
+
+
+def pages_report_url(repo: str, run_number: str, sub_path: str) -> str:
+    owner, name = repo.split("/", 1)
+    return f"https://{owner}.github.io/{name}/allure/{run_number}/{sub_path}/"
+
+
+def report_links_for_platform(repo: str, run_number: str, platform: str) -> str:
+    if not run_number:
+        return "–"
+    mapping = RELEASE_REPORT_PATHS.get(platform)
+    if not mapping:
+        return "–"
+    if isinstance(mapping, str):
+        url = pages_report_url(repo, run_number, mapping)
+        return f"<{url}|Report>"
+    links = [
+        f"<{pages_report_url(repo, run_number, sub)}|{label}>"
+        for label, sub in mapping
+    ]
+    return " · ".join(links)
+
 
 def status_icon(passed: int, total: int) -> str:
     if total == 0:
@@ -100,6 +132,7 @@ def main() -> int:
     )
 
     rows: list[str] = []
+    report_lines: list[str] = []
     for p in platforms:
         ps   = int(p.get("passed",   0))
         pf   = int(p.get("failed",   0))
@@ -108,20 +141,25 @@ def main() -> int:
         plat = p.get("platform", "unknown")
         icon = status_icon(ps, pt)
         passed_col = f"{ps} ({pct(ps, pt)})"
+        report_cell = "Report".ljust(col["rep"])
         rows.append(
             f"{passed_col.ljust(col['pct'])}"
             f"{str(pf).ljust(col['fail'])}"
             f"{str(pk).ljust(col['skip'])}"
             f"{str(pt).ljust(col['tot'])}"
             f"{icon}       "
-            f"{'Report'.ljust(col['rep'])}"
+            f"{report_cell}"
             f"{plat}"
         )
+        links = report_links_for_platform(repo, run_number, plat)
+        if links != "–":
+            report_lines.append(f"• *{plat}:* {links}")
 
     if not rows:
         rows = ["No platform summaries were found."]
 
     table_text = "\n".join([sep, header, sep] + rows + [sep])
+    reports_text = "\n".join(report_lines) if report_lines else "_No hosted reports for this run._"
 
     # ── Footer ────────────────────────────────────────────────────────────────
     footer_parts = []
@@ -164,6 +202,13 @@ def main() -> int:
                 "text": {
                     "type": "mrkdwn",
                     "text": f"```\n{table_text}\n```",
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Reports*\n{reports_text}",
                 },
             },
             {
