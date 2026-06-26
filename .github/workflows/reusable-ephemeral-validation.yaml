@@ -185,6 +185,39 @@ jobs:
           pages-destination: reports/${{ github.run_number }}/${{ inputs.module-name != '' && inputs.module-name || 'platform' }}/ephemeral
           github-token:      ${{ github.token }}
 
+      - name: Write ephemeral PR summary
+        if: always()
+        run: |
+          mkdir -p artifacts/ephemeral
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          perf = os.environ.get("PERF_PASSED", "")
+          smoke = os.environ.get("SMOKE_PASSED", "")
+          payload = {
+              "smoke_passed": smoke == "true",
+              "perf_passed": perf == "true",
+              "perf_skipped": smoke != "true" or perf == "",
+              "report_url": os.environ.get("REPORT_URL", ""),
+          }
+          Path("artifacts/ephemeral/summary.json").write_text(
+              json.dumps(payload, indent=2), encoding="utf-8"
+          )
+          PY
+        env:
+          SMOKE_PASSED: ${{ steps.smoke-gate.outputs.passed }}
+          PERF_PASSED: ${{ steps.perf-gate.outputs.passed }}
+          REPORT_URL: ${{ steps.k6-publish.outputs.report_url }}
+
+      - name: Upload ephemeral PR summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-pr-summary
+          path: artifacts/ephemeral/summary.json
+          if-no-files-found: ignore
+
       - name: Calculate duration
         if: always()
         run: |

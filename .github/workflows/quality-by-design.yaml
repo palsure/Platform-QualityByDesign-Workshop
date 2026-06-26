@@ -15,7 +15,7 @@ on:
   workflow_call:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   security-events: write
 

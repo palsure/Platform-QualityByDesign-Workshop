@@ -133,6 +133,15 @@ jobs:
           SBOM_WEB:   ${{ steps.sbom-web.outcome }}
         run: python3 .github/scripts/devsecops_gate_summary.py
 
+      - name: Upload DevSecOps PR summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: devsecops-pr-summary
+          path: artifacts/devsecops/summary.json
+          if-no-files-found: ignore
+
       - name: Notify Slack — DevSecOps
         if: always() && inputs.module-name != '' && inputs.thread-ts != ''
         env:

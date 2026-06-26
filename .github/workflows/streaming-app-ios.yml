@@ -885,6 +885,14 @@ jobs:
           name: ios-smoke-junit
           path: artifacts/smoke
 
+      - name: Download DevSecOps PR summary
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: devsecops-pr-summary
+          path: artifacts/devsecops
+
       - name: Generate PR comment
         if: always() && github.event_name == 'pull_request'
         env:
@@ -901,6 +909,7 @@ jobs:
           STAGE_BAT_RESULT:   ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
           STAGE_SMOKE_RESULT: ${{ vars.RUN_SMOKE_TESTS_IOS == 'false' && 'skipped' || needs.smoke-e2e.result }}
           BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios
+          DEVSECOPS_PASSED:   ${{ needs.devsecops.outputs.passed }}
           STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
           GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
           NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}

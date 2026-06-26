@@ -6,7 +6,12 @@ import glob
 import json
 import math
 import os
+import sys
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
 from devsecops_checks import CHECKS, applicable_checks
 
@@ -50,9 +55,8 @@ def format_count_row(
     )
 
 
-def devsecops_counts(module: str) -> tuple[int, int, int, int]:
+def devsecops_counts(module: str, outcomes: dict[str, str]) -> tuple[int, int, int, int]:
     """(passed, failed, skipped, total) for checks in scope for this module."""
-    outcomes = {check.key: os.environ.get(check.key, 'skipped') for check in CHECKS}
     passed = failed = skipped = 0
     for check in applicable_checks(module):
         outcome = (outcomes.get(check.key) or 'skipped').lower()
@@ -64,6 +68,35 @@ def devsecops_counts(module: str) -> tuple[int, int, int, int]:
             skipped += 1
     total = passed + failed + skipped
     return passed, failed, skipped, total
+
+
+def _load_json_artifact(pattern: str) -> dict | None:
+    for candidate in glob.glob(pattern, recursive=True):
+        try:
+            return json.loads(Path(candidate).read_text(encoding='utf-8'))
+        except Exception as exc:
+            print(f'⚠️  artifact parse error ({candidate}): {exc}')
+    return None
+
+
+def _devsecops_context(module: str) -> tuple[str, dict[str, str], str] | None:
+    artifact = _load_json_artifact('artifacts/devsecops/**/summary.json')
+    if artifact:
+        mod = str(artifact.get('module') or module)
+        outcomes = {str(k): str(v) for k, v in (artifact.get('checks') or {}).items()}
+        result = 'success' if artifact.get('passed') else 'failure'
+        return mod, outcomes, result
+
+    result = os.environ.get('STAGE_SECURITY_RESULT', '').strip().lower()
+    if not result:
+        passed_flag = os.environ.get('DEVSECOPS_PASSED', '').strip().lower()
+        if passed_flag in ('true', 'false'):
+            result = 'success' if passed_flag == 'true' else 'failure'
+    if not result:
+        return None
+
+    outcomes = {check.key: os.environ.get(check.key, 'skipped') for check in CHECKS}
+    return module, outcomes, result
 
 
 def parse_k6_summary(path: str) -> tuple[int, int, int, int]:
@@ -90,11 +123,26 @@ def parse_k6_summary(path: str) -> tuple[int, int, int, int]:
     return 0, 0, 0, 0
 
 
-def security_row(module: str) -> str | None:
-    result = os.environ.get('STAGE_SECURITY_RESULT', '').strip().lower()
-    if not result:
+def _load_context() -> tuple[str, str] | None:
+    artifact = _load_json_artifact('artifacts/ephemeral/**/summary.json')
+    if not artifact:
         return None
-    passed, failed, skipped, total = devsecops_counts(module)
+    if artifact.get('perf_passed'):
+        result = 'success'
+    elif artifact.get('perf_skipped'):
+        result = 'skipped'
+    else:
+        result = 'failure'
+    report_url = str(artifact.get('report_url') or '').strip()
+    return result, report_url
+
+
+def security_row(module: str) -> str | None:
+    ctx = _devsecops_context(module)
+    if not ctx:
+        return None
+    mod, outcomes, result = ctx
+    passed, failed, skipped, total = devsecops_counts(mod, outcomes)
     return format_count_row(
         'Security (DevSecOps)',
         passed,
@@ -108,11 +156,21 @@ def security_row(module: str) -> str | None:
 
 def load_test_row() -> str | None:
     result = os.environ.get('STAGE_LOAD_RESULT', '').strip().lower()
+    report_url = os.environ.get('LOAD_REPORT_URL', '').strip()
+
+    artifact_ctx = _load_context()
+    if artifact_ctx:
+        artifact_result, artifact_url = artifact_ctx
+        if not result:
+            result = artifact_result
+        if not report_url:
+            report_url = artifact_url
+
     if not result:
         return None
+
     k6_path = os.environ.get('K6_SUMMARY_PATH', 'artifacts/k6/k6-summary.json')
     passed, failed, skipped, total = parse_k6_summary(k6_path)
-    report_url = os.environ.get('LOAD_REPORT_URL', '').strip()
     report_link = f'[📊 k6 Report]({report_url})' if report_url else '–'
     return format_count_row(
         'Load Test (k6)',
@@ -123,14 +181,3 @@ def load_test_row() -> str | None:
         result,
         report_link,
     )
-
-
-def extra_stage_rows(module: str) -> list[str]:
-    rows: list[str] = []
-    sec = security_row(module)
-    if sec:
-        rows.append(sec)
-    load = load_test_row()
-    if load:
-        rows.append(load)
-    return rows

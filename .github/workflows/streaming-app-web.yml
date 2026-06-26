@@ -862,100 +862,6 @@ jobs:
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
-      # ── PR comment with per-stage results + Allure links ──────────────────
-      - name: Download unit JUnit results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-unit-junit
-          path: artifacts/unit
-
-      - name: Download BAT Playwright JSON results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-bat-playwright-json
-          path: artifacts/bat
-
-      - name: Download Smoke Playwright JSON results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-smoke-playwright-json
-          path: artifacts/smoke
-
-      - name: Download k6 summary
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: ephemeral-k6-summary
-          path: artifacts/k6
-
-      - name: Generate PR comment
-        if: always() && github.event_name == 'pull_request'
-        env:
-          GITHUB_REPOSITORY:  ${{ github.repository }}
-          GITHUB_RUN_ID:      ${{ github.run_id }}
-          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
-          GITHUB_SHA:         ${{ github.sha }}
-          PR_NUMBER:          ${{ github.event.pull_request.number }}
-          BRANCH_NAME:        ${{ github.head_ref }}
-          MODULE_NAME:        WEB
-          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
-          STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
-          STAGE_SMOKE_RESULT: skipped
-          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
-          STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
-          GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
-          NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}
-          TRIVY:              ${{ needs.devsecops.outputs.trivy }}
-          CONFTEST:           ${{ needs.devsecops.outputs.conftest }}
-          SBOM_API:           ${{ needs.devsecops.outputs.sbom_api }}
-          SBOM_WEB:           ${{ needs.devsecops.outputs.sbom_web }}
-          STAGE_LOAD_RESULT:  ${{ needs.ephemeral-validation.outputs.perf_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
-          LOAD_REPORT_URL:    ${{ needs.ephemeral-validation.outputs.report_url }}
-          K6_SUMMARY_PATH:    artifacts/k6/k6-summary.json
-        run: python3 .github/scripts/pr_summary_web.py
-
-      - name: Post or update PR comment
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const pr = context.payload.pull_request?.number;
-            if (!pr) {
-              core.warning('Not a pull_request event — skipping PR comment');
-              return;
-            }
-            const body = fs.readFileSync('pr-comment-web.md', 'utf8');
-            const MARKER = '<!-- qoe-web-results -->';
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr,
-            });
-            const existing = comments.find(c => c.body && c.body.includes(MARKER));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr,
-                body,
-              });
-            }
-
       - name: Fail pipeline if critical stage failed
         if: |
           needs.build.result == 'failure' ||
@@ -967,12 +873,12 @@ jobs:
           needs.promote-live.result == 'failure'
         run: exit 1
 
-  web-pr-comment-smoke:
-    name: "PR Comment (Smoke refresh)"
+  web-pr-comment:
+    name: "PR Comment (Full Results)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [notify-start, devsecops, unit-tests, bat-tests, smoke-tests, ephemeral-validation]
-    if: always() && github.event_name == 'pull_request' && needs.smoke-tests.result != 'skipped'
+    needs: [devsecops, unit-tests, bat-tests, smoke-tests, ephemeral-validation]
+    if: always() && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -997,12 +903,26 @@ jobs:
           name: web-smoke-playwright-json
           path: artifacts/smoke
 
+      - name: Download DevSecOps PR summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: devsecops-pr-summary
+          path: artifacts/devsecops
+
       - name: Download k6 summary
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: ephemeral-k6-summary
           path: artifacts/k6
+
+      - name: Download ephemeral PR summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-pr-summary
+          path: artifacts/ephemeral
 
       - name: Generate PR comment
         env:
@@ -1017,6 +937,7 @@ jobs:
           STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
           STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
           BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
+          DEVSECOPS_PASSED:   ${{ needs.devsecops.outputs.passed }}
           STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
           GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
           NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}
