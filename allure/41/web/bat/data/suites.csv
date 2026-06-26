@@ -1,0 +1,5 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"passed","Fri Jun 26 12:36:27 UTC 2026","Fri Jun 26 12:36:29 UTC 2026","2695","chromium","navigation.spec.ts","Navigation @BAT","","","navbar switches between Home, Movies, Shows, and Live",""
+"passed","Fri Jun 26 12:36:27 UTC 2026","Fri Jun 26 12:36:28 UTC 2026","1868","chromium","navigation.spec.ts","Navigation @BAT","","","home page loads with navbar and featured content",""
+"passed","Fri Jun 26 12:36:27 UTC 2026","Fri Jun 26 12:36:29 UTC 2026","2501","chromium","playback.spec.ts","Playback @BAT","","","play button opens video element on detail page",""
+"passed","Fri Jun 26 12:36:27 UTC 2026","Fri Jun 26 12:36:29 UTC 2026","2283","chromium","navigation.spec.ts","Navigation @BAT","","","tile opens detail page and back returns to browse tab",""
