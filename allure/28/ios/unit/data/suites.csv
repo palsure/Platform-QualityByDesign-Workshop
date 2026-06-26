@@ -1,0 +1,67 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_allHLSUrlsUseHttps","All HLS urls use HTTPS","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ All HLS urls use HTTPS."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","SmokeTests","StreamAppTests.SmokeTests","test_catalog_titles_are_non_empty","Catalog titles are non empty","**Unit** test in `SmokeTests`
+
+_Verifies:_ Catalog titles are non empty."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_allVideosHaveNonBlankIds","All videos have non blank ids","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ All videos have non blank ids."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_allHLSUrlsPointToM3u8","All HLS urls point to m3u8","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ All HLS urls point to m3u8."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","56","","TestResults","BATTests","StreamAppTests.BATTests","test_find_video_by_id","Find video by id","**Unit** test in `BATTests`
+
+_Verifies:_ Find video by id."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_findVideo_returnsMatchingVideo","Find video returns matching video","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Find video returns matching video."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","56","","TestResults","BATTests","StreamAppTests.BATTests","test_catalog_has_playable_entries","Catalog has playable entries","**Unit** test in `BATTests`
+
+_Verifies:_ Catalog has playable entries."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogVideoEquality","Catalog video equality","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog video equality."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","56","","TestResults","BATTests","StreamAppTests.BATTests","test_catalog_urls_are_https_hls","Catalog urls are HTTPS HLS","**Unit** test in `BATTests`
+
+_Verifies:_ Catalog urls are HTTPS HLS."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogHLSUrlsAreUnique","Catalog HLS urls are unique","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog HLS urls are unique."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","43","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_baselineVideoHasExpectedHLSUrl","Baseline video has expected HLS URL","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Baseline video has expected HLS URL."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_appleAdvancedVideoHasExpectedTitle","Apple advanced video has expected title","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Apple advanced video has expected title."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","37","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_findVideo_returnsNilForUnknownId","Find video returns nil for unknown id","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Find video returns nil for unknown id."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_findVideo_returnsCorrectEntryForEachCatalogItem","Find video returns correct entry for each catalog item","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Find video returns correct entry for each catalog item."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogVideoInequality","Catalog video inequality","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog video inequality."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogIsNotEmpty","Catalog is not empty","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog is not empty."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogContainsThreeVideos","Catalog contains three videos","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog contains three videos."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_catalogVideoIdsAreUnique","Catalog video ids are unique","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ Catalog video ids are unique."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","RegressionTests","StreamAppTests.RegressionTests","test_catalog_lookup_is_case_sensitive","Catalog lookup is case sensitive","**Unit** test in `RegressionTests`
+
+_Verifies:_ Catalog lookup is case sensitive."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_allVideosHaveNonBlankHLSUrls","All videos have non blank HLS urls","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ All videos have non blank HLS urls."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","44","","TestResults","RegressionTests","StreamAppTests.RegressionTests","test_catalog_ids_are_unique","Catalog ids are unique","**Unit** test in `RegressionTests`
+
+_Verifies:_ Catalog ids are unique."
+"passed","Fri Jun 26 03:24:11 UTC 2026","Fri Jun 26 03:24:12 UTC 2026","42","","TestResults","VideoCatalogTests","StreamAppTests.VideoCatalogTests","test_allVideosHaveNonBlankTitles","All videos have non blank titles","**Unit** test in `VideoCatalogTests`
+
+_Verifies:_ All videos have non blank titles."
