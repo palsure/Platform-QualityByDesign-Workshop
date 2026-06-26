@@ -919,3 +919,18 @@ jobs:
           needs.bat-tests.result == 'failure' ||
           needs.deploy-preview.result == 'failure'
         run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. MERGE GATE — required status check for branch protection on pull_request
+# ─────────────────────────────────────────────────────────────────────────────
+  merge-gate:
+    name: Web Merge Gate
+    runs-on: ubuntu-latest
+    needs: [report]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Block merge until Web gates pass
+        if: needs.report.result != 'success'
+        run: |
+          echo "::error::Web quality gates did not pass — merge blocked"
+          exit 1

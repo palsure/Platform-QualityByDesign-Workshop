@@ -101,6 +101,8 @@ Open a PR and show the updating comment from `pr-summary.py`.
 
 Teams call the platform pipeline from their repo — see [ADOPTION.md](ADOPTION.md).
 
+**Enforce merge blocking:** run `bash platform/scripts/apply-branch-protection.sh` so `main` requires **`All quality gates passed`** before merge.
+
 ## Optional: K8s namespace-per-PR
 
 For participants with kind/minikube:

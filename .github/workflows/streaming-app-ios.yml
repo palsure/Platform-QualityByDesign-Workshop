@@ -865,3 +865,18 @@ jobs:
           needs.build-app.result == 'failure' ||
           needs.bat-e2e.outputs.gate_passed == 'false'
         run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. MERGE GATE — required status check for branch protection on pull_request
+# ─────────────────────────────────────────────────────────────────────────────
+  merge-gate:
+    name: iOS Merge Gate
+    runs-on: ubuntu-latest
+    needs: [report]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Block merge until iOS gates pass
+        if: needs.report.result != 'success'
+        run: |
+          echo "::error::iOS quality gates did not pass — merge blocked"
+          exit 1

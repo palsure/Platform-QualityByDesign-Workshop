@@ -58,6 +58,20 @@ jobs:
 
 Set **branch protection** required checks to the QBD orchestrator jobs (`DevSecOps Defaults`, `Backend Test Gates`, `Web Player Unit Tests`, `Ephemeral Env Validation`, `Promotion Gate`).
 
+### Block PR merge until gates pass
+
+Each shipping pipeline exposes a module **merge gate** job (`API Merge Gate`, `Web Merge Gate`, `Android Merge Gate`, `iOS Merge Gate`, `NR Merge Gate`). The [`pr-merge-gate.yml`](../.github/workflows/pr-merge-gate.yml) workflow waits for every gate that applies to the PR diff and publishes one required check: **`All quality gates passed`**.
+
+Apply branch protection on `main` (repo admin):
+
+```bash
+bash platform/scripts/apply-branch-protection.sh palsure/Platform-QualityByDesign-Workshop main
+```
+
+Or in GitHub → **Settings → Rules → Rulesets**: require status check **`All quality gates passed`** on `main`.
+
+Until that ruleset is active, failing pipelines will not block the merge button — only the workflows enforce gate failures.
+
 Mobile apps (Android/iOS) continue to use the existing `streaming-app-android.yml` and `streaming-app-ios.yml` pipelines for shipping and device E2E.
 
 ## Optional: Slack & Firebase

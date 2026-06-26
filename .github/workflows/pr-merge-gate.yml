@@ -1,0 +1,186 @@
+# Waits for every module merge gate that applies to this PR, then exposes a single
+# required status check ("All quality gates passed") for branch protection.
+name: PR Merge Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: pr-merge-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  paths:
+    name: Detect changed modules
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      android: ${{ steps.filter.outputs.android }}
+      ios: ${{ steps.filter.outputs.ios }}
+      nr: ${{ steps.filter.outputs.nr }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'backend-api/**'
+              - 'platform/**'
+              - 'docker-compose.yml'
+              - 'docs/**'
+              - 'ops/**'
+              - 'README.md'
+              - 'TESTING.md'
+              - '.gitignore'
+              - '.gitleaks.toml'
+              - '.github/workflows/reusable-*.yaml'
+              - '.github/workflows/streaming-app-api.yml'
+              - '.github/workflows/shared-notify-build-started.yml'
+              - '.github/actions/**'
+              - '.github/scripts/**'
+            web:
+              - 'web-player/**'
+              - 'platform/**'
+              - 'docker-compose.yml'
+              - 'docs/**'
+              - 'ops/**'
+              - 'README.md'
+              - 'TESTING.md'
+              - '.gitignore'
+              - '.gitleaks.toml'
+              - '.github/workflows/reusable-*.yaml'
+              - '.github/workflows/streaming-app-web.yml'
+              - '.github/workflows/shared-notify-build-started.yml'
+              - '.github/actions/**'
+              - '.github/scripts/**'
+            android:
+              - 'android-player/**'
+              - '.github/workflows/streaming-app-android.yml'
+              - '.github/workflows/shared-notify-build-started.yml'
+              - '.github/actions/**'
+              - '.github/scripts/stage_result_to_slack.py'
+              - '.github/scripts/module_result_to_slack.py'
+              - '.github/scripts/firebase_app_distribution.sh'
+              - '.github/workflows/reusable-devsecops.yaml'
+              - '.github/scripts/devsecops_result_to_slack.py'
+              - '.github/scripts/devsecops_checks.py'
+              - '.github/scripts/devsecops_gate_summary.py'
+            ios:
+              - 'ios-player/**'
+              - '.github/workflows/streaming-app-ios.yml'
+              - '.github/workflows/shared-notify-build-started.yml'
+              - '.github/actions/**'
+              - '.github/scripts/stage_result_to_slack.py'
+              - '.github/scripts/module_result_to_slack.py'
+              - '.github/workflows/reusable-devsecops.yaml'
+              - '.github/scripts/devsecops_result_to_slack.py'
+            nr:
+              - 'ops/monitoring/newrelic/**'
+              - '.github/workflows/streaming-app-newrelic.yml'
+              - '.github/workflows/shared-notify-build-started.yml'
+              - '.github/actions/slack-*'
+              - '.github/scripts/slack_*.py'
+              - '.github/scripts/stage_result_to_slack.py'
+              - '.github/scripts/module_result_to_slack.py'
+              - '.github/scripts/update_build_message.py'
+
+  merge-gate:
+    name: All quality gates passed
+    runs-on: ubuntu-latest
+    needs: paths
+    timeout-minutes: 120
+    steps:
+      - name: Wait for module merge gates
+        uses: actions/github-script@v7
+        env:
+          REQUIRE_API: ${{ needs.paths.outputs.api }}
+          REQUIRE_WEB: ${{ needs.paths.outputs.web }}
+          REQUIRE_ANDROID: ${{ needs.paths.outputs.android }}
+          REQUIRE_IOS: ${{ needs.paths.outputs.ios }}
+          REQUIRE_NR: ${{ needs.paths.outputs.nr }}
+        with:
+          script: |
+            const required = [];
+            if (process.env.REQUIRE_API === 'true') required.push('API Merge Gate');
+            if (process.env.REQUIRE_WEB === 'true') required.push('Web Merge Gate');
+            if (process.env.REQUIRE_ANDROID === 'true') required.push('Android Merge Gate');
+            if (process.env.REQUIRE_IOS === 'true') required.push('iOS Merge Gate');
+            if (process.env.REQUIRE_NR === 'true') required.push('NR Merge Gate');
+
+            if (required.length === 0) {
+              core.info('No module paths changed — merge gate not required for this PR.');
+              return;
+            }
+
+            const sha = context.payload.pull_request.head.sha;
+            const { owner, repo } = context.repo;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const deadline = Date.now() + 110 * 60 * 1000;
+            const graceMs = 3 * 60 * 1000;
+            const startedAt = Date.now();
+
+            core.info(`Waiting for merge gates: ${required.join(', ')}`);
+
+            while (Date.now() < deadline) {
+              const { data } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: sha,
+                per_page: 100,
+              });
+
+              const latestByName = {};
+              for (const run of data.check_runs) {
+                if (!required.includes(run.name)) continue;
+                const prev = latestByName[run.name];
+                if (!prev || new Date(run.started_at || 0) > new Date(prev.started_at || 0)) {
+                  latestByName[run.name] = run;
+                }
+              }
+
+              const missing = required.filter((name) => !latestByName[name]);
+              if (missing.length > 0) {
+                if (Date.now() - startedAt < graceMs) {
+                  core.info(`Grace period — checks not registered yet: ${missing.join(', ')}`);
+                  await sleep(20_000);
+                  continue;
+                }
+                core.info(`Still waiting for checks to start: ${missing.join(', ')}`);
+                await sleep(30_000);
+                continue;
+              }
+
+              const pending = required.filter((name) => latestByName[name].status !== 'completed');
+              if (pending.length > 0) {
+                core.info(`In progress: ${pending.join(', ')}`);
+                await sleep(30_000);
+                continue;
+              }
+
+              const failed = required.filter((name) => {
+                const conclusion = latestByName[name].conclusion;
+                return conclusion !== 'success';
+              });
+
+              if (failed.length > 0) {
+                const details = failed
+                  .map((name) => `${name}=${latestByName[name].conclusion}`)
+                  .join(', ');
+                core.setFailed(`Merge blocked — failed quality gates: ${details}`);
+                return;
+              }
+
+              core.info('All required module merge gates passed.');
+              return;
+            }
+
+            core.setFailed('Timed out waiting for module merge gates to complete.');
