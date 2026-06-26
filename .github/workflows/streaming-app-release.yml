@@ -235,32 +235,16 @@ jobs:
         working-directory: web-player
       - name: Record Playwright start time
         run: echo "PLAYWRIGHT_START=$(date +%s)" >> "$GITHUB_ENV"
-      - name: Build, serve, and run Playwright E2E
+      # Playwright starts Vite preview via webServer in playwright.config.ts
+      # (build + serve on :4173). Do not set PLAYWRIGHT_BASE_URL here — that
+      # disables webServer and leaves nothing listening in CI.
+      - name: Playwright E2E
         id: e2e
         continue-on-error: true
         working-directory: web-player
         env:
           CI: true
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
-        run: |
-          set -euo pipefail
-          npm run build
-          nohup npx vite preview --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
-          echo $! > /tmp/vite-preview.pid
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then
-              echo "✅ Vite preview ready: http://127.0.0.1:4173"
-              break
-            fi
-            sleep 2
-          done
-          if ! curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then
-            cat /tmp/vite-preview.log || true
-            echo "::error::Vite preview failed to start on :4173"
-            exit 1
-          fi
-          npx playwright test --project=chromium
-          kill "$(cat /tmp/vite-preview.pid)" 2>/dev/null || true
+        run: npx playwright test --project=chromium
       - name: Summarize Playwright JSON
         if: always()
         # playwright.config.ts writes the JSON to a stage-suffixed filename:
