@@ -68,3 +68,5 @@ android-player/
 │   └── ui/StreamCatalogAdapter.kt
 └── app/src/androidTest/.../e2e/   # BAT · Smoke · Regression
 ```
+
+<!-- ci: triggers streaming-app-android.yml on PR -->

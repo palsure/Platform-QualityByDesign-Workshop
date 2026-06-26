@@ -84,4 +84,6 @@ backend-api/
 │   └── repositories/VideoRepository.java
 ├── src/main/resources/db/migration/   # Flyway SQL
 └── src/test/java/                   # unit · contract · BAT · smoke
+
+<!-- ci: triggers streaming-app-api.yml on PR -->
 ```

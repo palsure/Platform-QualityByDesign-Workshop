@@ -103,3 +103,5 @@ web-player/
 ├── Dockerfile
 └── package.json
 ```
+
+<!-- ci: triggers streaming-app-web.yml on PR -->
