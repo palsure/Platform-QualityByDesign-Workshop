@@ -66,6 +66,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 env:
   QUALITY_GATE_THRESHOLD: '80'
@@ -897,7 +898,7 @@ jobs:
           BRANCH_NAME:        ${{ github.head_ref }}
           STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
           STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
-          STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
+          STAGE_SMOKE_RESULT: skipped
           BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
         run: python3 .github/scripts/pr_summary_web.py
 
@@ -906,33 +907,34 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs     = require('fs');
-            const body   = fs.readFileSync('pr-comment-web.md', 'utf8');
+            const fs = require('fs');
+            const pr = context.payload.pull_request?.number;
+            if (!pr) {
+              core.warning('Not a pull_request event — skipping PR comment');
+              return;
+            }
+            const body = fs.readFileSync('pr-comment-web.md', 'utf8');
             const MARKER = '<!-- qoe-web-results -->';
-
             const { data: comments } = await github.rest.issues.listComments({
-              owner:        context.repo.owner,
-              repo:         context.repo.repo,
-              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
             });
-
             const existing = comments.find(c => c.body && c.body.includes(MARKER));
             if (existing) {
               await github.rest.issues.updateComment({
-                owner:      context.repo.owner,
-                repo:       context.repo.repo,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
                 comment_id: existing.id,
                 body,
               });
-              console.log('Updated PR comment', existing.id);
             } else {
               await github.rest.issues.createComment({
-                owner:        context.repo.owner,
-                repo:         context.repo.repo,
-                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
                 body,
               });
-              console.log('Created PR comment');
             }
 
       - name: Fail pipeline if critical stage failed
@@ -945,6 +947,81 @@ jobs:
           (needs.ephemeral-validation.result != 'skipped' && needs.ephemeral-validation.outputs.all_passed != 'true') ||
           needs.promote-live.result == 'failure'
         run: exit 1
+
+  web-pr-comment-smoke:
+    name: "PR Comment (Smoke refresh)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [notify-start, unit-tests, bat-tests, smoke-tests]
+    if: always() && github.event_name == 'pull_request' && needs.smoke-tests.result != 'skipped'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit JUnit results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-unit-junit
+          path: artifacts/unit
+
+      - name: Download BAT Playwright JSON results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-bat-playwright-json
+          path: artifacts/bat
+
+      - name: Download Smoke Playwright JSON results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-smoke-playwright-json
+          path: artifacts/smoke
+
+      - name: Generate PR comment
+        env:
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_SHA:         ${{ github.sha }}
+          PR_NUMBER:          ${{ github.event.pull_request.number }}
+          BRANCH_NAME:        ${{ github.head_ref }}
+          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
+          STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
+          STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
+          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
+        run: python3 .github/scripts/pr_summary_web.py
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request?.number;
+            if (!pr) return;
+            const body = fs.readFileSync('pr-comment-web.md', 'utf8');
+            const MARKER = '<!-- qoe-web-results -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. MERGE GATE — required status check for branch protection on pull_request

@@ -115,9 +115,15 @@ def main() -> None:
     pr_url  = f"https://github.com/{repo}/pull/{pr_number}" if pr_number else ""
 
     # ── Parse results ─────────────────────────────────────────────────────────
-    unit_junit  = 'artifacts/unit/vitest-junit.xml'
-    bat_json    = 'artifacts/bat/playwright-results-bat.json'
-    smoke_json  = 'artifacts/smoke/playwright-results-smoke.json'
+    unit_junit_candidates = glob.glob('artifacts/unit/**/vitest-junit.xml', recursive=True)
+    unit_junit_candidates += glob.glob('artifacts/unit/vitest-junit.xml')
+    unit_junit = unit_junit_candidates[0] if unit_junit_candidates else 'artifacts/unit/vitest-junit.xml'
+    bat_json_candidates = glob.glob('artifacts/bat/**/playwright-results-bat.json', recursive=True)
+    bat_json_candidates += glob.glob('artifacts/bat/playwright-results-bat.json')
+    bat_json = bat_json_candidates[0] if bat_json_candidates else 'artifacts/bat/playwright-results-bat.json'
+    smoke_json_candidates = glob.glob('artifacts/smoke/**/playwright-results-smoke.json', recursive=True)
+    smoke_json_candidates += glob.glob('artifacts/smoke/playwright-results-smoke.json')
+    smoke_json = smoke_json_candidates[0] if smoke_json_candidates else 'artifacts/smoke/playwright-results-smoke.json'
 
     unit_p, unit_f, unit_s, unit_t   = (
         parse_junit(unit_junit) if Path(unit_junit).exists()
