@@ -1,3 +1,4 @@
+# New Relic agent config (backend-api). CI: streaming-app-newrelic.yml
 common: &default_settings
   app_name: QoE API
   license_key: ${NEWRELIC_LICENSE_KEY}

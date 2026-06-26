@@ -82,3 +82,5 @@ FIREBASE_APP_ID=<app-id> APPLE_TEAM_ID=<team-id> ./deploy-firebase.sh
 Unit tests → build → Firebase internal → BAT (simulator, soft gate) → public promote → smoke → report.
 
 See [`docs/FIREBASE-SETUP.md`](../docs/FIREBASE-SETUP.md).
+
+<!-- ci: triggers streaming-app-ios.yml on PR -->
