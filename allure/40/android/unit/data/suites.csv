@@ -1,0 +1,40 @@
+"Status","Start Time","Stop Time","Duration in ms","Parent Suite","Suite","Sub Suite","Test Class","Test Method","Name","Description"
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns correct video for each catalog entry","Find video returns correct video for each catalog entry","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns correct video for each catalog entry."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank HLS URLs","All videos have non blank HLS UR ls","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank HLS UR ls."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","22","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank titles","All videos have non blank titles","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank titles."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all HLS URLs point to m3u8 playlists","All HLS UR ls point to m3u8 playlists","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All HLS UR ls point to m3u8 playlists."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","StreamVideo data class copy works","Stream video data class copy works","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Stream video data class copy works."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","baseline video has expected HLS URL","Baseline video has expected HLS URL","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Baseline video has expected HLS URL."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","2","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog video ids are unique","Catalog video ids are unique","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog video ids are unique."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all videos have non-blank ids","All videos have non blank ids","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All videos have non blank ids."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","1","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog contains at least one video","Catalog contains at least one video","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog contains at least one video."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns null for unknown id","Find video returns null for unknown id","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns null for unknown id."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","all HLS URLs start with https","All HLS UR ls start with HTTPS","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ All HLS UR ls start with HTTPS."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","20","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","findVideo returns matching video","Find video returns matching video","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Find video returns matching video."
+"passed","Fri Jun 26 03:34:17 UTC 2026","Fri Jun 26 03:34:17 UTC 2026","0","","com.devopsdays.qoe.player.data.VideoCatalogTest","VideoCatalogTest","com.devopsdays.qoe.player.data.VideoCatalogTest","catalog contains three videos","Catalog contains three videos","**Unit** test in `VideoCatalogTest`
+
+_Verifies:_ Catalog contains three videos."
