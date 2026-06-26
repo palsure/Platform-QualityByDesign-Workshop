@@ -43,8 +43,7 @@ docker compose up -d
 cd backend-api && ./gradlew unitTest contractTest batTest
 
 # DevSecOps (local)
-chmod +x platform/scripts/devsecops-gates.sh
-./platform/scripts/devsecops-gates.sh
+bash platform/scripts/devsecops-gates.sh
 ```
 
 ## Adoption

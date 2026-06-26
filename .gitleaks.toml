@@ -4,8 +4,13 @@ title = "Platform Quality by Design — Gitleaks"
 useDefault = true
 
 [allowlist]
-description = "Firebase mobile SDK config files ship client-restricted API keys by design"
+description = "Known non-secret paths and mobile SDK config templates"
 paths = [
   '''(?i)google-services\.json$''',
   '''(?i)GoogleService-Info\.plist$''',
+  '''(?i)/\.build/''',
+  '''(?i)node_modules/''',
+  '''(?i)platform/\.local/''',
+  '''(?i)allure-results/''',
+  '''(?i)allure-report/''',
 ]

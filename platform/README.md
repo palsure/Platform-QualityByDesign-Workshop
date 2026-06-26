@@ -24,9 +24,10 @@ platform/
 ## Local usage
 
 ```bash
-# DevSecOps gates
-chmod +x platform/scripts/devsecops-gates.sh
-./platform/scripts/devsecops-gates.sh
+# DevSecOps gates (from repo root — no chmod needed)
+bash platform/scripts/devsecops-gates.sh              # all checks (QBD)
+bash platform/scripts/devsecops-gates.sh API          # API module only
+bash platform/scripts/devsecops-gates.sh WEB          # web module only
 
 # Ephemeral K8s env (optional — kind/minikube)
 docker compose build backend

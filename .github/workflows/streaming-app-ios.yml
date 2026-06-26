@@ -79,6 +79,7 @@ permissions:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests == true }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
   FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -124,7 +125,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     needs: [notify-start]
-    if: inputs.skip_tests != true
+    if: env.SKIP_TESTS != 'true'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -211,7 +212,7 @@ jobs:
           QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
         run: |
           UNIT="${{ steps.unit.outcome }}"
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
 
           if [ "$SKIP" = "true" ]; then
             echo "⚡ Hotfix mode — unit gate bypassed"
@@ -317,7 +318,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     needs: [notify-start, build-app, unit-tests]
-    if: inputs.skip_tests != true && needs.unit-tests.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
+    if: env.SKIP_TESTS != 'true' && needs.unit-tests.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
     # BAT is a soft gate: if `swift test` cannot start within 60 s (toolchain
     # / simulator unavailable) the job still completes and downstream
     # Firebase deploy proceeds based on the Unit gate alone.
@@ -413,7 +414,7 @@ jobs:
         run: |
           BAT="${{ steps.bat.outcome }}"
           DEVICE_READY="${{ steps.probe.outputs.device_ready }}"
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
           # If the toolchain probe failed OR the test step never produced a
           # JUnit XML, treat BAT as 'skipped' so Firebase deployment can
           # still proceed gated on the Unit test result.

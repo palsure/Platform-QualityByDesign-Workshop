@@ -29,12 +29,17 @@ on:
       - 'backend-api/**'
       - 'platform/**'
       - 'docker-compose.yml'
+      - 'docs/**'
+      - 'ops/**'
+      - 'README.md'
+      - 'TESTING.md'
+      - '.gitignore'
+      - '.gitleaks.toml'
       - '.github/workflows/reusable-*.yaml'
       - '.github/workflows/streaming-app-api.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
-      - '.github/scripts/stage_result_to_slack.py'
-      - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/**'
   push:
     branches: [main, develop]
     paths:
@@ -80,6 +85,10 @@ concurrency:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  # Skip flags — only read workflow_dispatch inputs when that event fired (PR/push safe).
+  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests == true }}
+  SKIP_UNIT_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_unit_tests == true }}
+  SKIP_BAT: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_bat == true }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -119,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: notify-start
-    if: inputs.skip_tests != true && inputs.skip_unit_tests != true
+    if: env.SKIP_TESTS != 'true' && env.SKIP_UNIT_TESTS != 'true'
     outputs:
       thread_ts:   ${{ needs.notify-start.outputs.thread_ts }}
       gate_passed: ${{ steps.unit-gate.outputs.passed }}
@@ -243,8 +252,8 @@ jobs:
     timeout-minutes: 15
     needs: [notify-start, unit-tests]
     if: |
-      inputs.skip_tests != true &&
-      inputs.skip_unit_tests != true &&
+      env.SKIP_TESTS != 'true' &&
+      env.SKIP_UNIT_TESTS != 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true'
     outputs:
       passed: ${{ steps.gate.outputs.passed }}
@@ -313,7 +322,7 @@ jobs:
     timeout-minutes: 15
     needs: [notify-start, unit-tests, contract-tests]
     if: |
-      inputs.skip_tests != true &&
+      env.SKIP_TESTS != 'true' &&
       (needs.unit-tests.outputs.gate_passed == 'true' ||
        needs.unit-tests.result == 'skipped') &&
       (needs.contract-tests.outputs.passed == 'true' ||
@@ -418,7 +427,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [notify-start, unit-tests, build-and-verify]
-    if: inputs.skip_tests != true && inputs.skip_bat != true && needs.build-and-verify.result == 'success'
+    if: env.SKIP_TESTS != 'true' && env.SKIP_BAT != 'true' && needs.build-and-verify.result == 'success'
     outputs:
       gate_passed: ${{ steps.bat-gate.outputs.passed }}
 
@@ -516,7 +525,7 @@ jobs:
     needs: [notify-start, promote-live, build-and-verify]
     continue-on-error: true
     if: |
-      inputs.skip_tests != true &&
+      env.SKIP_TESTS != 'true' &&
       needs.promote-live.result == 'success' &&
       needs.build-and-verify.result == 'success'
 

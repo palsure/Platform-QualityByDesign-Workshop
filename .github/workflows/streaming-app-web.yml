@@ -28,12 +28,17 @@ on:
       - 'web-player/**'
       - 'platform/**'
       - 'docker-compose.yml'
+      - 'docs/**'
+      - 'ops/**'
+      - 'README.md'
+      - 'TESTING.md'
+      - '.gitignore'
+      - '.gitleaks.toml'
       - '.github/workflows/reusable-*.yaml'
       - '.github/workflows/streaming-app-web.yml'
       - '.github/workflows/shared-notify-build-started.yml'
       - '.github/actions/**'
-      - '.github/scripts/stage_result_to_slack.py'
-      - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/**'
   push:
     branches: [main, develop]
     paths:
@@ -65,6 +70,7 @@ permissions:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
+  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests == true }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
@@ -145,7 +151,7 @@ jobs:
     # Unit tests run AFTER the build artifact is ready so we know the code
     # at least compiles before we exercise the test suite.
     needs: [notify-start, build]
-    if: inputs.skip_tests != true && needs.build.result == 'success'
+    if: env.SKIP_TESTS != 'true' && needs.build.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -233,7 +239,7 @@ jobs:
           QUALITY_GATE_THRESHOLD: ${{ env.QUALITY_GATE_THRESHOLD }}
         run: |
           UNIT="${{ steps.unit.outcome }}"
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
 
           if [ "$SKIP" = "true" ]; then
             echo "⚡ Hotfix mode — unit gate bypassed"
@@ -280,7 +286,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [notify-start, deploy-preview]
-    if: inputs.skip_tests != true && needs.deploy-preview.result == 'success'
+    if: env.SKIP_TESTS != 'true' && needs.deploy-preview.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -393,7 +399,7 @@ jobs:
         if: always()
         run: |
           BAT="${{ steps.bat.outcome }}"
-          SKIP="${{ inputs.skip_tests }}"
+          SKIP="${{ env.SKIP_TESTS }}"
 
           if [ "$SKIP" = "true" ]; then
             echo "⚡ Hotfix mode — BAT gate bypassed"

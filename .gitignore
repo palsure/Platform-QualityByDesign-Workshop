@@ -81,9 +81,6 @@ backend-api/.gradle/
 web-player/dist/
 web-player/node_modules/
 
-# Automation tests
-qoe-automation-tests/target/
-
 # ── Test & report artifacts ─────────────────────────────────────────
 test-results/
 coverage/
@@ -128,6 +125,9 @@ temp/
 
 # ── Docker overrides ──────────────────────────────────────────────────
 docker-compose.override.yml
+
+# ── Platform local run artifacts ───────────────────────────────────────
+platform/.local/
 
 # ── Firebase / mobile tooling (local) ─────────────────────────────────
 .firebase/

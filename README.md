@@ -53,55 +53,72 @@ flowchart LR
 
   subgraph Backend["Backend (Java / Spring Boot)"]
     direction TB
-    API["REST API<br/>catalog · videos · pipeline-runs"]
+    API["REST API<br/>catalog · videos"]
     DB[("PostgreSQL 15")]
     API --> DB
   end
 
-  Web --> API
-  iOS --> API
-  Android --> API
+  subgraph CDN["Media"]
+    HLS["External HLS origins<br/>+ nginx :8081"]
+  end
+
+  Web -->|"smoke / API tests"| API
+  Web --> HLS
+  iOS --> HLS
+  Android --> HLS
 ```
+
+See [`docs/APP-PIPELINE-ARCHITECTURE.md`](docs/APP-PIPELINE-ARCHITECTURE.md) for full runtime and CI/CD diagrams.
 
 ## CI/CD pipeline shape
 
 Each module owns its own GitHub Actions workflow. Pipelines all follow the same gated shape — *test → build → ship a canary → re-validate → promote* — with threaded Slack notifications and Allure reports published to GitHub Pages along the way.
 
+**Full diagram** (numbered steps, gate badges, integration zones): [`docs/APP-PIPELINE-ARCHITECTURE.md`](docs/APP-PIPELINE-ARCHITECTURE.md)
+
 ```mermaid
+%%{init: {'flowchart': {'curve': 'basis'}, 'themeVariables': {'fontSize': '12px'}}}%%
 flowchart LR
-  Push((Push / PR))
-  subgraph Pipeline["Module pipeline (per-platform)"]
+  Push(["🌿<br/><b>Push / PR</b><br/><i>Code change opened or pushed</i>"])
+
+  subgraph Pipeline[" ⬡ Module pipeline (per-platform) "]
     direction LR
-    Notify[notify-start]
-    Lint[lint]
-    Unit["unit-tests<br/>(gate ≥80%)"]
-    Build["build<br/>(jar / apk / dist)"]
-    Internal[publish-internal]
-    BAT["BAT e2e<br/>(soft-gated)"]
-    Public[publish-public]
-    Smoke[smoke e2e]
-    Reg[regression<br/>nightly]
-    Report[report &amp; Slack summary]
-    Notify --> Lint
-    Notify --> Unit
-    Lint --> Build
-    Unit --> Build
-    Build --> Internal
-    Internal --> BAT
-    BAT -- "gate=true" --> Public
-    Public --> Smoke
-    Smoke --> Report
-    Reg -.-> Report
+    S1["<b>1</b> notify-start"]
+    S2["<b>2</b> lint"]
+    S3["<b>3</b> unit-tests<br/>gate ≥ 80%"]
+    GH["✅ Gate Pass ≥ 80%"]
+    S4["<b>4</b> build"]
+    S5["<b>5</b> publish-internal"]
+    S6["<b>6</b> BAT e2e<br/>soft-gated"]
+    GS["ℹ️ Soft gate"]
+    S7["<b>7</b> publish-public"]
+    S8["<b>8</b> smoke e2e"]
+    Reg["regression nightly"]
+    S9["report & Slack summary"]
+
+    S1 --> S2 & S3
+    S2 --> S4
+    S3 --> GH --> S4
+    S4 --> S5 --> S6 --> GS -->|"gate=true"| S7 --> S8 --> S9
+    Reg -.-> S9
   end
-  Push --> Notify
-  Smoke -.-> Slack[Slack thread]
-  Internal -.-> Slack
-  BAT -.-> Slack
-  Report -.-> Slack
-  Smoke -.-> Pages[GitHub Pages<br/>Allure reports]
-  Build -.-> Firebase[Firebase App Distribution]
-  Internal -.-> Firebase
-  Public -.-> Firebase
+
+  Firebase["🔥 Firebase<br/>App Distribution"]
+  Pages["GitHub Pages<br/>Allure"]
+  Slack(["💬 Slack thread"])
+
+  Push ==> S1
+  S1 & S6 & S8 & S9 -.-> Slack
+  S5 & S7 -.-> Firebase
+  S3 & S6 & S8 & S9 -.-> Pages
+  S4 -.->|Fail| Slack
+
+  classDef step fill:#fff,stroke:#6366f1,stroke-width:2px
+  classDef gate fill:#d1fae5,stroke:#059669
+  classDef soft fill:#f1f5f9,stroke:#64748b
+  class S1,S2,S3,S4,S5,S6,S7,S8,S9,Reg step
+  class GH gate
+  class GS soft
 ```
 
 The Web and API pipelines use Firebase Hosting (preview channel → live promotion); the Android and iOS pipelines use Firebase App Distribution (internal canary → public promotion). On a hard BAT failure the public promotion is blocked but the internal release stays live so the team can investigate on the same artifact testers are running.

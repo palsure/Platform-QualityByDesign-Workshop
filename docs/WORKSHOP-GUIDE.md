@@ -65,8 +65,7 @@ Talk track: unit = fast feedback; contract = API compatibility; BAT = integratio
 ### 3. DevSecOps defaults (10 min)
 
 ```bash
-chmod +x platform/scripts/devsecops-gates.sh
-./platform/scripts/devsecops-gates.sh
+bash platform/scripts/devsecops-gates.sh
 ```
 
 Show [`platform/policy/k8s.rego`](../platform/policy/k8s.rego) and Conftest in [`reusable-devsecops.yaml`](../.github/workflows/reusable-devsecops.yaml).
