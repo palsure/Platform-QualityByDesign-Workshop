@@ -1626,3 +1626,18 @@ jobs:
           needs.publish-internal.outputs.distributed != 'true' ||
           needs.bat-e2e.outputs.gate_passed == 'false'
         run: exit 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. MERGE GATE — required status check for branch protection on pull_request
+# ─────────────────────────────────────────────────────────────────────────────
+  merge-gate:
+    name: Android Merge Gate
+    runs-on: ubuntu-latest
+    needs: [report]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Block merge until Android gates pass
+        if: needs.report.result != 'success'
+        run: |
+          echo "::error::Android quality gates did not pass — merge blocked"
+          exit 1

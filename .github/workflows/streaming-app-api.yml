@@ -813,7 +813,35 @@ jobs:
                  needs.promote-live.result == 'success') && 'success' || 'failure' }}
         run: python3 .github/scripts/update_build_message.py
 
+      - name: Fail pipeline if critical stage failed
+        if: |
+          needs.devsecops.outputs.passed != 'true' ||
+          needs.unit-tests.result == 'failure' ||
+          needs.unit-tests.outputs.gate_passed == 'false' ||
+          needs.contract-tests.outputs.passed != 'true' ||
+          needs.build-and-verify.result == 'failure' ||
+          needs.bat-tests.result == 'failure' ||
+          needs.bat-tests.outputs.gate_passed == 'false' ||
+          needs.ephemeral-validation.outputs.all_passed != 'true' ||
+          needs.promote-live.result != 'success'
+        run: exit 1
+
       # PR comment is posted by api-pr-comment job after smoke-tests complete
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. MERGE GATE — required status check for branch protection on pull_request
+# ─────────────────────────────────────────────────────────────────────────────
+  merge-gate:
+    name: API Merge Gate
+    runs-on: ubuntu-latest
+    needs: [api-report]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Block merge until API gates pass
+        if: needs.api-report.result != 'success'
+        run: |
+          echo "::error::API quality gates did not pass — merge blocked"
+          exit 1
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. API PR COMMENT — waits for smoke-tests to finish, then posts full results
