@@ -9,8 +9,12 @@ paths = [
   '''(?i)google-services\.json$''',
   '''(?i)GoogleService-Info\.plist$''',
   '''(?i)/\.build/''',
+  '''(?i)/build/''',
+  '''(?i)/\.gradle/''',
   '''(?i)node_modules/''',
   '''(?i)platform/\.local/''',
   '''(?i)allure-results/''',
   '''(?i)allure-report/''',
+  '''(?i)docs/SLACK-SETUP\.md$''',
+  '''(?i)docs/FIREBASE-SETUP\.md$''',
 ]

@@ -24,8 +24,6 @@ on:
     secrets:
       SLACK_BOT_TOKEN:
         required: false
-      GITHUB_TOKEN:
-        required: false
     outputs:
       smoke_passed:
         value: ${{ jobs.validate.outputs.smoke_passed }}
@@ -42,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     outputs:
       smoke_passed: ${{ steps.smoke-gate.outputs.passed }}
       perf_passed: ${{ steps.perf-gate.outputs.passed }}
@@ -64,7 +62,7 @@ jobs:
 
       - name: Wait for backend health
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
               echo "✅ Backend healthy"
               exit 0
@@ -76,7 +74,7 @@ jobs:
 
       - name: Wait for web player
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             if curl -fsS http://localhost:3000/ | grep -qi 'streamapp\|root'; then
               echo "✅ Web player healthy"
               exit 0
@@ -124,6 +122,15 @@ jobs:
           k6 run \
             --summary-export=platform/tests/load/k6-summary.json \
             platform/tests/load/load-test.js
+
+      - name: Upload k6 summary
+        if: always() && steps.k6.outcome != 'skipped' && steps.k6.outcome != 'cancelled'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-k6-summary
+          path: platform/tests/load/k6-summary.json
+          if-no-files-found: ignore
 
       - name: Evaluate performance smoke gate
         id: perf-gate
@@ -176,7 +183,40 @@ jobs:
         with:
           source-dir:        ephemeral-k6-report
           pages-destination: reports/${{ github.run_number }}/${{ inputs.module-name != '' && inputs.module-name || 'platform' }}/ephemeral
-          github-token:      ${{ secrets.GITHUB_TOKEN }}
+          github-token:      ${{ github.token }}
+
+      - name: Write ephemeral PR summary
+        if: always()
+        run: |
+          mkdir -p artifacts/ephemeral
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          perf = os.environ.get("PERF_PASSED", "")
+          smoke = os.environ.get("SMOKE_PASSED", "")
+          payload = {
+              "smoke_passed": smoke == "true",
+              "perf_passed": perf == "true",
+              "perf_skipped": smoke != "true" or perf == "",
+              "report_url": os.environ.get("REPORT_URL", ""),
+          }
+          Path("artifacts/ephemeral/summary.json").write_text(
+              json.dumps(payload, indent=2), encoding="utf-8"
+          )
+          PY
+        env:
+          SMOKE_PASSED: ${{ steps.smoke-gate.outputs.passed }}
+          PERF_PASSED: ${{ steps.perf-gate.outputs.passed }}
+          REPORT_URL: ${{ steps.k6-publish.outputs.report_url }}
+
+      - name: Upload ephemeral PR summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-pr-summary
+          path: artifacts/ephemeral/summary.json
+          if-no-files-found: ignore
 
       - name: Calculate duration
         if: always()

@@ -66,6 +66,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 env:
   QUALITY_GATE_THRESHOLD: '80'
@@ -151,7 +152,9 @@ jobs:
     # Unit tests run AFTER the build artifact is ready so we know the code
     # at least compiles before we exercise the test suite.
     needs: [notify-start, build]
-    if: env.SKIP_TESTS != 'true' && needs.build.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.build.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -286,7 +289,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [notify-start, deploy-preview]
-    if: env.SKIP_TESTS != 'true' && needs.deploy-preview.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.deploy-preview.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -457,6 +462,26 @@ jobs:
         run: |
           echo "DEPLOY_START=$(date +%s)" >> "$GITHUB_ENV"
           CHANNEL="${FIREBASE_CHANNEL_ID:-staging}"
+
+          # Workshop default: BAT runs against local preview when Firebase is not wired up.
+          if [ -z "$FIREBASE_TOKEN" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "::notice title=Firebase not configured::Using local Vite preview for BAT (set FIREBASE_TOKEN + FIREBASE_PROJECT_ID to deploy to Firebase)"
+            nohup npx vite preview --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
+            echo $! > /tmp/vite-preview.pid
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then
+                echo "✅ Local preview ready: http://127.0.0.1:4173"
+                echo "channel=local" >> "$GITHUB_OUTPUT"
+                echo "preview_url=http://127.0.0.1:4173" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              sleep 2
+            done
+            cat /tmp/vite-preview.log || true
+            echo "❌ Local Vite preview failed to start"
+            exit 1
+          fi
+
           PREVIEW_URL="$FIREBASE_PREVIEW_URL"
 
           # Must be a full https URL — not a project ID or hostname fragment.
@@ -668,7 +693,6 @@ jobs:
       slack-channel-id: ${{ vars.SLACK_CHANNEL_ID }}
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. PROMOTE LIVE — after BAT + DevSecOps + ephemeral gates pass
@@ -701,8 +725,9 @@ jobs:
         id: promote
         run: |
           if [ -z "$FIREBASE_TOKEN" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
-            echo "❌ FIREBASE_TOKEN or FIREBASE_PROJECT_ID secret missing."
-            exit 1
+            echo "::notice::Firebase not configured — skipping live promotion (not a gate failure)"
+            echo "live_url=${{ needs.deploy-preview.outputs.preview_url }}" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           CHANNEL="${{ needs.deploy-preview.outputs.channel }}"
           LIVE_URL="https://$FIREBASE_PROJECT_ID.web.app"
@@ -832,84 +857,10 @@ jobs:
                  needs.bat-tests.outputs.gate_passed == 'true' &&
                  needs.deploy-preview.result == 'success' &&
                  needs.ephemeral-validation.outputs.all_passed == 'true' &&
-                 needs.promote-live.result == 'success') && 'success' || 'failure' }}
+                 (needs.promote-live.result == 'success' || needs.promote-live.result == 'skipped')) && 'success' || 'failure' }}
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
-
-      # ── PR comment with per-stage results + Allure links ──────────────────
-      - name: Download unit JUnit results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-unit-junit
-          path: artifacts/unit
-
-      - name: Download BAT Playwright JSON results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-bat-playwright-json
-          path: artifacts/bat
-
-      - name: Download Smoke Playwright JSON results
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: web-smoke-playwright-json
-          path: artifacts/smoke
-
-      - name: Generate PR comment
-        if: always() && github.event_name == 'pull_request'
-        env:
-          GITHUB_REPOSITORY:  ${{ github.repository }}
-          GITHUB_RUN_ID:      ${{ github.run_id }}
-          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
-          GITHUB_SHA:         ${{ github.sha }}
-          PR_NUMBER:          ${{ github.event.pull_request.number }}
-          BRANCH_NAME:        ${{ github.head_ref }}
-          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
-          STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
-          STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
-          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
-        run: python3 .github/scripts/pr_summary_web.py
-
-      - name: Post or update PR comment
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs     = require('fs');
-            const body   = fs.readFileSync('pr-comment-web.md', 'utf8');
-            const MARKER = '<!-- qoe-web-results -->';
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner:        context.repo.owner,
-              repo:         context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const existing = comments.find(c => c.body && c.body.includes(MARKER));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner:      context.repo.owner,
-                repo:       context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-              console.log('Updated PR comment', existing.id);
-            } else {
-              await github.rest.issues.createComment({
-                owner:        context.repo.owner,
-                repo:         context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-              console.log('Created PR comment');
-            }
 
       - name: Fail pipeline if critical stage failed
         if: |
@@ -917,8 +868,118 @@ jobs:
           needs.unit-tests.result == 'failure' ||
           needs.unit-tests.outputs.gate_passed == 'false' ||
           needs.bat-tests.result == 'failure' ||
-          needs.deploy-preview.result == 'failure'
+          needs.deploy-preview.result == 'failure' ||
+          (needs.ephemeral-validation.result != 'skipped' && needs.ephemeral-validation.outputs.all_passed != 'true') ||
+          needs.promote-live.result == 'failure'
         run: exit 1
+
+  web-pr-comment:
+    name: "PR Comment (Full Results)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [devsecops, unit-tests, bat-tests, smoke-tests, ephemeral-validation]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit JUnit results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-unit-junit
+          path: artifacts/unit
+
+      - name: Download BAT Playwright JSON results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-bat-playwright-json
+          path: artifacts/bat
+
+      - name: Download Smoke Playwright JSON results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: web-smoke-playwright-json
+          path: artifacts/smoke
+
+      - name: Download DevSecOps PR summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: devsecops-pr-summary
+          path: artifacts/devsecops
+
+      - name: Download k6 summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-k6-summary
+          path: artifacts/k6
+
+      - name: Download ephemeral PR summary
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-pr-summary
+          path: artifacts/ephemeral
+
+      - name: Generate PR comment
+        env:
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_SHA:         ${{ github.sha }}
+          PR_NUMBER:          ${{ github.event.pull_request.number }}
+          BRANCH_NAME:        ${{ github.head_ref }}
+          MODULE_NAME:        WEB
+          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.result }}
+          STAGE_BAT_RESULT:   ${{ needs.bat-tests.result }}
+          STAGE_SMOKE_RESULT: ${{ needs.smoke-tests.result }}
+          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/web
+          DEVSECOPS_PASSED:   ${{ needs.devsecops.outputs.passed }}
+          STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
+          GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
+          NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}
+          TRIVY:              ${{ needs.devsecops.outputs.trivy }}
+          CONFTEST:           ${{ needs.devsecops.outputs.conftest }}
+          SBOM_API:           ${{ needs.devsecops.outputs.sbom_api }}
+          SBOM_WEB:           ${{ needs.devsecops.outputs.sbom_web }}
+          STAGE_LOAD_RESULT:  ${{ needs.ephemeral-validation.outputs.perf_passed == 'true' && 'success' || (needs.ephemeral-validation.result == 'skipped' && 'skipped' || 'failure') }}
+          LOAD_REPORT_URL:    ${{ needs.ephemeral-validation.outputs.report_url }}
+          K6_SUMMARY_PATH:    artifacts/k6/k6-summary.json
+        run: python3 .github/scripts/pr_summary_web.py
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request?.number;
+            if (!pr) return;
+            const body = fs.readFileSync('pr-comment-web.md', 'utf8');
+            const MARKER = '<!-- qoe-web-results -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. MERGE GATE — required status check for branch protection on pull_request

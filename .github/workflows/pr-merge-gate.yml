@@ -129,6 +129,7 @@ jobs:
             const startedAt = Date.now();
             const startupGraceMs = 3 * 60 * 1000;
             const startupFailMs = 8 * 60 * 1000;
+            const mergeGateGraceMs = 10 * 60 * 1000;
             const deadline = Date.now() + 85 * 60 * 1000;
 
             core.info(`Required merge gates: ${modules.map((m) => m.gate).join(', ')}`);
@@ -151,38 +152,92 @@ jobs:
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
             }
 
-            async function latestChecksByName() {
+            async function checksGroupedByName() {
               const { data } = await github.rest.checks.listForRef({
                 owner,
                 repo,
                 ref: sha,
                 per_page: 100,
               });
-              const latestByName = {};
+              const byName = {};
               for (const run of data.check_runs) {
-                const prev = latestByName[run.name];
-                if (!prev || new Date(run.started_at || 0) > new Date(prev.started_at || 0)) {
-                  latestByName[run.name] = run;
+                if (!byName[run.name]) byName[run.name] = [];
+                byName[run.name].push(run);
+              }
+              return byName;
+            }
+
+            function pickGateCheck(checkRuns, workflowRun) {
+              if (!checkRuns || checkRuns.length === 0) return null;
+              const sorted = [...checkRuns].sort(
+                (a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0),
+              );
+              const runCreated = workflowRun
+                ? new Date(workflowRun.created_at).getTime()
+                : 0;
+
+              for (const check of sorted) {
+                const started = new Date(check.started_at || 0).getTime();
+                const belongsToRun = !runCreated || started >= runCreated - 120_000;
+                if (
+                  belongsToRun &&
+                  check.status === 'completed' &&
+                  check.conclusion
+                ) {
+                  return check;
                 }
               }
-              return latestByName;
+
+              for (const check of sorted) {
+                const started = new Date(check.started_at || 0).getTime();
+                const belongsToRun = !runCreated || started >= runCreated - 120_000;
+                if (belongsToRun && check.status !== 'completed') {
+                  return { pending: true, check };
+                }
+              }
+
+              return sorted[0];
             }
 
             while (Date.now() < deadline) {
               const workflowRuns = await listWorkflowRuns();
-              const checks = await latestChecksByName();
+              const checksByName = await checksGroupedByName();
               const resolved = {};
               const waiting = [];
               const neverStarted = [];
 
               for (const mod of modules) {
-                const check = checks[mod.gate];
-                if (check) {
-                  resolved[mod.gate] = check;
+                const run = workflowRunFor(workflowRuns, mod.workflowFile);
+                const picked = pickGateCheck(checksByName[mod.gate], run);
+
+                if (picked?.pending) {
+                  waiting.push(`${mod.gate} (check ${picked.check.status})`);
                   continue;
                 }
 
-                const run = workflowRunFor(workflowRuns, mod.workflowFile);
+                if (picked) {
+                  const runCreated = run ? new Date(run.created_at).getTime() : 0;
+                  const checkStarted = new Date(picked.started_at || 0).getTime();
+                  const stale = runCreated && checkStarted < runCreated - 120_000;
+
+                  if (!stale) {
+                    if (picked.status !== 'completed' || !picked.conclusion) {
+                      waiting.push(`${mod.gate} (check ${picked.status || 'pending'})`);
+                      continue;
+                    }
+                    if (
+                      picked.conclusion === 'cancelled' &&
+                      run &&
+                      run.status !== 'completed'
+                    ) {
+                      waiting.push(`${mod.gate} (check cancelled, pipeline ${run.status})`);
+                      continue;
+                    }
+                    resolved[mod.gate] = picked;
+                    continue;
+                  }
+                }
+
                 if (!run) {
                   const elapsed = Date.now() - startedAt;
                   if (elapsed < startupGraceMs) {
@@ -200,7 +255,13 @@ jobs:
                   continue;
                 }
 
-                // Pipeline finished before merge-gate job existed on main — use workflow verdict.
+                const completedAgo = Date.now() - new Date(run.updated_at).getTime();
+                if (completedAgo < mergeGateGraceMs) {
+                  waiting.push(`${mod.gate} (workflow ${run.conclusion}, waiting for merge-gate check)`);
+                  continue;
+                }
+
+                // Legacy fallback when main branch has no merge-gate job yet.
                 resolved[mod.gate] = {
                   status: 'completed',
                   conclusion: run.conclusion === 'success' ? 'success' : 'failure',
@@ -236,7 +297,8 @@ jobs:
                 const details = failed
                   .map(([name, check]) => {
                     const via = check.source === 'workflow-run' ? 'workflow' : 'check';
-                    return `${name}=${check.conclusion} (${via})`;
+                    const label = check.conclusion || check.status || 'unknown';
+                    return `${name}=${label} (${via})`;
                   })
                   .join(', ');
                 core.setFailed(`Merge blocked — failed quality gates: ${details}`);

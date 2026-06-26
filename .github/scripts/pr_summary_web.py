@@ -26,7 +26,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-THRESHOLD = 80  # % pass rate required to display as PASSED
+from pr_summary_common import format_count_row, load_test_row, pct, security_row, verdict
 
 
 # ── Parsers ──────────────────────────────────────────────────────────────────
@@ -75,25 +75,9 @@ def parse_playwright_json(json_path: str) -> tuple[int, int, int, int]:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def pct(passed: int, total: int) -> int:
-    return math.floor(100.0 * passed / total) if total else 0
-
-
-def verdict_icon(passed: int, total: int, job_result: str) -> str:
-    if job_result in ('skipped', 'cancelled'):
-        return '⏭'
-    if total == 0:
-        return '❌' if job_result == 'failure' else '⏭'
-    rate = pct(passed, total)
-    return '✅' if rate >= THRESHOLD else '❌'
-
-
-def verdict_text(icon: str, rate: int, total: int, job_result: str) -> str:
-    if icon == '⏭':
-        return 'SKIPPED'
-    if total == 0:
-        return 'FAILED' if job_result == 'failure' else 'SKIPPED'
-    return 'PASSED' if rate >= THRESHOLD else 'FAILED'
+def verdict_text(passed: int, failed: int, total: int, job_result: str) -> str:
+    _, label = verdict(passed, failed, total, job_result)
+    return label
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -107,6 +91,8 @@ def main() -> None:
     branch     = os.environ.get('BRANCH_NAME', 'unknown')
     pages_base = os.environ.get('BASE_PAGES_URL', '')  # e.g. https://user.github.io/repo/allure/27/web
 
+    module     = os.environ.get('MODULE_NAME', 'WEB')
+
     unit_result  = os.environ.get('STAGE_UNIT_RESULT',  'skipped').lower()
     bat_result   = os.environ.get('STAGE_BAT_RESULT',   'skipped').lower()
     smoke_result = os.environ.get('STAGE_SMOKE_RESULT', 'skipped').lower()
@@ -115,9 +101,15 @@ def main() -> None:
     pr_url  = f"https://github.com/{repo}/pull/{pr_number}" if pr_number else ""
 
     # ── Parse results ─────────────────────────────────────────────────────────
-    unit_junit  = 'artifacts/unit/vitest-junit.xml'
-    bat_json    = 'artifacts/bat/playwright-results-bat.json'
-    smoke_json  = 'artifacts/smoke/playwright-results-smoke.json'
+    unit_junit_candidates = glob.glob('artifacts/unit/**/vitest-junit.xml', recursive=True)
+    unit_junit_candidates += glob.glob('artifacts/unit/vitest-junit.xml')
+    unit_junit = unit_junit_candidates[0] if unit_junit_candidates else 'artifacts/unit/vitest-junit.xml'
+    bat_json_candidates = glob.glob('artifacts/bat/**/playwright-results-bat.json', recursive=True)
+    bat_json_candidates += glob.glob('artifacts/bat/playwright-results-bat.json')
+    bat_json = bat_json_candidates[0] if bat_json_candidates else 'artifacts/bat/playwright-results-bat.json'
+    smoke_json_candidates = glob.glob('artifacts/smoke/**/playwright-results-smoke.json', recursive=True)
+    smoke_json_candidates += glob.glob('artifacts/smoke/playwright-results-smoke.json')
+    smoke_json = smoke_json_candidates[0] if smoke_json_candidates else 'artifacts/smoke/playwright-results-smoke.json'
 
     unit_p, unit_f, unit_s, unit_t   = (
         parse_junit(unit_junit) if Path(unit_junit).exists()
@@ -140,32 +132,30 @@ def main() -> None:
     ]
 
     # ── Overall verdict ───────────────────────────────────────────────────────
-    overall_failed = any(
-        verdict_text(
-            verdict_icon(p, t, r), pct(p, t), t, r
-        ) == 'FAILED'
-        for _, p, f, s, t, r, _ in stages
-    )
+    overall_failed = False
+    rows = []
+    sec = security_row(module)
+    if sec:
+        rows.append(sec)
+        if '**FAILED**' in sec:
+            overall_failed = True
+
+    for name, p, f, s, t, job_result, stage_key in stages:
+        label = verdict_text(p, f, t, job_result)
+        if label == 'FAILED':
+            overall_failed = True
+        report_link = f'[📊 Allure]({pages_base}/{stage_key})' if pages_base else '–'
+        rows.append(format_count_row(name, p, f, s, t, job_result, report_link))
+
+    load = load_test_row()
+    if load:
+        rows.append(load)
+        if '**FAILED**' in load:
+            overall_failed = True
+
     overall_icon = '❌' if overall_failed else '✅'
 
     # ── Build table rows ──────────────────────────────────────────────────────
-    rows = []
-    for name, p, f, s, t, job_result, stage_key in stages:
-        rate  = pct(p, t)
-        icon  = verdict_icon(p, t, job_result)
-        label = verdict_text(icon, rate, t, job_result)
-        rate_str = f'{rate}%' if t > 0 else 'n/a'
-
-        if pages_base:
-            report_link = f'[📊 Allure]({pages_base}/{stage_key})'
-        else:
-            report_link = '–'
-
-        rows.append(
-            f'| {icon} **{name}** | {p} | {f} | {s} | {t} '
-            f'| {rate_str} | **{label}** | {report_link} |'
-        )
-
     table = '\n'.join(rows)
 
     # ── Footer ────────────────────────────────────────────────────────────────

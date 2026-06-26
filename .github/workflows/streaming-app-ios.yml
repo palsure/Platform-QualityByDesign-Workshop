@@ -45,6 +45,7 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/pr_summary_junit.py'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
   push:
@@ -56,6 +57,7 @@ on:
       - '.github/actions/**'
       - '.github/scripts/stage_result_to_slack.py'
       - '.github/scripts/module_result_to_slack.py'
+      - '.github/scripts/pr_summary_junit.py'
       - '.github/workflows/reusable-devsecops.yaml'
       - '.github/scripts/devsecops_result_to_slack.py'
   schedule:
@@ -75,6 +77,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 env:
   QUALITY_GATE_THRESHOLD: '80'
@@ -125,7 +128,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     needs: [notify-start]
-    if: env.SKIP_TESTS != 'true'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -318,7 +321,10 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     needs: [notify-start, build-app, unit-tests]
-    if: env.SKIP_TESTS != 'true' && needs.unit-tests.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.build-app.result == 'success'
     # BAT is a soft gate: if `swift test` cannot start within 60 s (toolchain
     # / simulator unavailable) the job still completes and downstream
     # Firebase deploy proceeds based on the Unit gate alone.
@@ -853,6 +859,100 @@ jobs:
           env-label:        ${{ env.ENV_LABEL }}
           slack-bot-token:  ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
+
+      # ── PR comment (unit + BAT + smoke) ─────────────────────────────────────
+      - name: Download unit test results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ios-unit-junit
+          path: artifacts/unit
+
+      - name: Download BAT test results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ios-bat-junit
+          path: artifacts/bat
+
+      - name: Download smoke test results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ios-smoke-junit
+          path: artifacts/smoke
+
+      - name: Download DevSecOps PR summary
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: devsecops-pr-summary
+          path: artifacts/devsecops
+
+      - name: Generate PR comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_RUN_ID:      ${{ github.run_id }}
+          GITHUB_RUN_NUMBER:  ${{ github.run_number }}
+          GITHUB_SHA:         ${{ github.sha }}
+          PR_NUMBER:          ${{ github.event.pull_request.number }}
+          BRANCH_NAME:        ${{ github.head_ref }}
+          MODULE_NAME:        iOS
+          COMMENT_MARKER:     '<!-- qoe-ios-results -->'
+          OUTPUT_FILE:        pr-comment-ios.md
+          STAGE_UNIT_RESULT:  ${{ needs.unit-tests.outputs.gate_passed == 'true' && 'success' || (needs.unit-tests.result == 'skipped' && 'skipped' || 'failure') }}
+          STAGE_BAT_RESULT:   ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || 'failure') }}
+          STAGE_SMOKE_RESULT: ${{ vars.RUN_SMOKE_TESTS_IOS == 'false' && 'skipped' || needs.smoke-e2e.result }}
+          BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/ios
+          DEVSECOPS_PASSED:   ${{ needs.devsecops.outputs.passed }}
+          STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
+          GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
+          NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}
+          TRIVY:              ${{ needs.devsecops.outputs.trivy }}
+          CONFTEST:           ${{ needs.devsecops.outputs.conftest }}
+          SBOM_API:           ${{ needs.devsecops.outputs.sbom_api }}
+          SBOM_WEB:           ${{ needs.devsecops.outputs.sbom_web }}
+        run: python3 .github/scripts/pr_summary_junit.py
+
+      - name: Post or update PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request?.number;
+            if (!pr) {
+              core.warning('Not a pull_request event — skipping PR comment');
+              return;
+            }
+            const body = fs.readFileSync('pr-comment-ios.md', 'utf8');
+            const MARKER = '<!-- qoe-ios-results -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
 
       - name: Fail pipeline if critical stage failed
         # bat-e2e uses continue-on-error: true so its job result is always
