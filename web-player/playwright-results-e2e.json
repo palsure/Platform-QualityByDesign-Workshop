@@ -10,18 +10,14 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {
-      "actualWorkers": 1
-    },
+    "metadata": {},
     "preserveOutput": "always",
     "projects": [
       {
         "outputDir": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "chromium",
         "name": "chromium",
         "testDir": "/Users/PalusS0502/Documents/projects/platform/web-player/e2e",
@@ -35,9 +31,7 @@
         "outputDir": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "chromium-throttle",
         "name": "chromium-throttle",
         "testDir": "/Users/PalusS0502/Documents/projects/platform/web-player/e2e",
@@ -51,9 +45,7 @@
         "outputDir": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "firefox",
         "name": "firefox",
         "testDir": "/Users/PalusS0502/Documents/projects/platform/web-player/e2e",
@@ -67,9 +59,7 @@
         "outputDir": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "mobile-chrome",
         "name": "mobile-chrome",
         "testDir": "/Users/PalusS0502/Documents/projects/platform/web-player/e2e",
@@ -138,242 +128,19 @@
       "timeout": 120000
     }
   },
-  "suites": [
+  "suites": [],
+  "errors": [
     {
-      "title": "navigation.spec.ts",
-      "file": "navigation.spec.ts",
-      "column": 0,
-      "line": 0,
-      "specs": [],
-      "suites": [
-        {
-          "title": "Navigation @BAT",
-          "file": "navigation.spec.ts",
-          "line": 5,
-          "column": 6,
-          "specs": [
-            {
-              "title": "home page loads with navbar and featured content",
-              "ok": false,
-              "tags": [
-                "BAT"
-              ],
-              "tests": [
-                {
-                  "timeout": 90000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 14,
-                      "error": {
-                        "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝",
-                        "stack": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                      },
-                      "errors": [
-                        {
-                          "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-06-26T03:30:44.281Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46bW9kZSIsInZhbHVlIjoibG9jYWwifV19fQ=="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46cHJvdmlkZXIiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46YnVpbGQiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7ImxhYmVscyI6W3sibmFtZSI6InJ1bl9tb2RlIiwidmFsdWUiOiJsb2NhbCJ9XX19"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results/navigation-Navigation-BAT--59d0b-navbar-and-featured-content-chromium/error-context.md"
-                        }
-                      ]
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "5d2868f7d23420c27cca-201ecebbb40966bff69e",
-              "file": "navigation.spec.ts",
-              "line": 6,
-              "column": 7
-            },
-            {
-              "title": "navbar switches between Home, Movies, Shows, and Live",
-              "ok": false,
-              "tags": [
-                "BAT"
-              ],
-              "tests": [
-                {
-                  "timeout": 90000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 1,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 11,
-                      "error": {
-                        "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝",
-                        "stack": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                      },
-                      "errors": [
-                        {
-                          "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-06-26T03:30:44.755Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46bW9kZSIsInZhbHVlIjoibG9jYWwifV19fQ=="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46cHJvdmlkZXIiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46YnVpbGQiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7ImxhYmVscyI6W3sibmFtZSI6InJ1bl9tb2RlIiwidmFsdWUiOiJsb2NhbCJ9XX19"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results/navigation-Navigation-BAT--df058--Home-Movies-Shows-and-Live-chromium/error-context.md"
-                        }
-                      ]
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "5d2868f7d23420c27cca-bee00eee8027ef072d0f",
-              "file": "navigation.spec.ts",
-              "line": 13,
-              "column": 7
-            },
-            {
-              "title": "tile opens detail page and back returns to browse tab",
-              "ok": false,
-              "tags": [
-                "BAT"
-              ],
-              "tests": [
-                {
-                  "timeout": 90000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 2,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 11,
-                      "error": {
-                        "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝",
-                        "stack": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                      },
-                      "errors": [
-                        {
-                          "message": "Error: browserType.launch: Executable doesn't exist at /var/folders/r3/ycb80cw57q7f0mrcmqm_z2rc0000gq/T/cursor-sandbox-cache/8bea1452d43241afde7727a92d34f297/playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-x64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-06-26T03:30:45.212Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46bW9kZSIsInZhbHVlIjoibG9jYWwifV19fQ=="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46cHJvdmlkZXIiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7InBhcmFtZXRlcnMiOlt7Im5hbWUiOiJydW46YnVpbGQiLCJ2YWx1ZSI6ImxvY2FsIn1dfX0="
-                        },
-                        {
-                          "name": "Allure Metadata (metadata)",
-                          "contentType": "application/vnd.allure.message+json",
-                          "body": "eyJ0eXBlIjoibWV0YWRhdGEiLCJkYXRhIjp7ImxhYmVscyI6W3sibmFtZSI6InJ1bl9tb2RlIiwidmFsdWUiOiJsb2NhbCJ9XX19"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/PalusS0502/Documents/projects/platform/web-player/test-results/navigation-Navigation-BAT--dba85--back-returns-to-browse-tab-chromium/error-context.md"
-                        }
-                      ]
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "5d2868f7d23420c27cca-63e2548523aef52f9599",
-              "file": "navigation.spec.ts",
-              "line": 29,
-              "column": 7
-            }
-          ]
-        }
-      ]
+      "message": "Error: http://127.0.0.1:4173 is already used, make sure that nothing is running on the port/url or set reuseExistingServer:true in config.webServer.",
+      "stack": "Error: http://127.0.0.1:4173 is already used, make sure that nothing is running on the port/url or set reuseExistingServer:true in config.webServer."
     }
   ],
-  "errors": [],
   "stats": {
-    "startTime": "2026-06-26T03:30:43.463Z",
-    "duration": 1792.292,
+    "startTime": "2026-06-26T12:32:45.953Z",
+    "duration": 9.854000000000042,
     "expected": 0,
     "skipped": 0,
-    "unexpected": 3,
+    "unexpected": 0,
     "flaky": 0
   }
 }
