@@ -28,7 +28,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-THRESHOLD = 80
+from pr_summary_common import format_count_row, load_test_row, pct, security_row, verdict
 
 
 def parse_junit_dir(directory: str) -> tuple[int, int, int, int]:
@@ -66,17 +66,8 @@ def pct(passed: int, total: int) -> int:
     return math.floor(100.0 * passed / total) if total else 0
 
 
-def verdict(passed: int, failed: int, total: int, job_result: str) -> tuple[str, str]:
-    """Returns (icon, label). Prefer JUnit counts when tests ran."""
-    if total > 0:
-        if failed == 0 and pct(passed, total) >= THRESHOLD:
-            return '✅', 'PASSED'
-        return '❌', 'FAILED'
-    if job_result in ('skipped', 'cancelled'):
-        return '⏭', 'SKIPPED'
-    if job_result == 'failure':
-        return '❌', 'FAILED'
-    return '⏭', 'SKIPPED'
+def verdict_row(passed: int, failed: int, total: int, job_result: str) -> tuple[str, str]:
+    return verdict(passed, failed, total, job_result)
 
 
 def main() -> None:
@@ -114,17 +105,24 @@ def main() -> None:
 
     overall_failed = False
     rows = []
+    sec = security_row(module)
+    if sec:
+        rows.append(sec)
+        if '**FAILED**' in sec:
+            overall_failed = True
+
     for name, p, f, s, t, job_result, stage_key in stages:
-        rate = pct(p, t)
-        icon, label = verdict(p, f, t, job_result)
+        _, label = verdict_row(p, f, t, job_result)
         if label == 'FAILED':
             overall_failed = True
-        rate_str = f'{rate}%' if t > 0 else 'n/a'
         report_link = f'[📊 Allure]({pages_base}/{stage_key})' if pages_base else '–'
-        rows.append(
-            f'| {icon} **{name}** | {p} | {f} | {s} | {t} '
-            f'| {rate_str} | **{label}** | {report_link} |'
-        )
+        rows.append(format_count_row(name, p, f, s, t, job_result, report_link))
+
+    load = load_test_row()
+    if load:
+        rows.append(load)
+        if '**FAILED**' in load:
+            overall_failed = True
 
     table = '\n'.join(rows)
 

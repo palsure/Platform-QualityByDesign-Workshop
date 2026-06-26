@@ -1657,6 +1657,13 @@ jobs:
           STAGE_BAT_RESULT:   ${{ needs.bat-e2e.outputs.gate_passed == 'true' && 'success' || (needs.bat-e2e.outputs.gate_passed == 'skipped' && 'skipped' || (needs.bat-e2e.result == 'skipped' && 'skipped' || 'failure')) }}
           STAGE_SMOKE_RESULT: ${{ vars.RUN_SMOKE_TESTS_ANDROID == 'false' && 'skipped' || needs.smoke-e2e.result }}
           BASE_PAGES_URL:     https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure/${{ github.run_number }}/android
+          STAGE_SECURITY_RESULT: ${{ needs.devsecops.outputs.passed == 'true' && 'success' || (needs.devsecops.result == 'skipped' && 'skipped' || 'failure') }}
+          GITLEAKS:           ${{ needs.devsecops.outputs.gitleaks }}
+          NPM_AUDIT:          ${{ needs.devsecops.outputs.npm_audit }}
+          TRIVY:              ${{ needs.devsecops.outputs.trivy }}
+          CONFTEST:           ${{ needs.devsecops.outputs.conftest }}
+          SBOM_API:           ${{ needs.devsecops.outputs.sbom_api }}
+          SBOM_WEB:           ${{ needs.devsecops.outputs.sbom_web }}
         run: python3 .github/scripts/pr_summary_junit.py
 
       - name: Post or update PR comment

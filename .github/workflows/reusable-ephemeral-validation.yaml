@@ -123,6 +123,15 @@ jobs:
             --summary-export=platform/tests/load/k6-summary.json \
             platform/tests/load/load-test.js
 
+      - name: Upload k6 summary
+        if: always() && steps.k6.outcome != 'skipped' && steps.k6.outcome != 'cancelled'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ephemeral-k6-summary
+          path: platform/tests/load/k6-summary.json
+          if-no-files-found: ignore
+
       - name: Evaluate performance smoke gate
         id: perf-gate
         if: always()
