@@ -85,10 +85,10 @@ concurrency:
 env:
   QUALITY_GATE_THRESHOLD: '80'
   ENV_LABEL: ${{ github.event.inputs.environment || 'STAGE' }}
-  # Skip flags — only read workflow_dispatch inputs when that event fired (PR/push safe).
-  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests == true }}
-  SKIP_UNIT_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_unit_tests == true }}
-  SKIP_BAT: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_bat == true }}
+  # workflow_dispatch skip flags — use github.event.inputs (not inputs context) so pull_request works.
+  SKIP_TESTS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == true }}
+  SKIP_UNIT_TESTS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_unit_tests == true }}
+  SKIP_BAT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_bat == true }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
