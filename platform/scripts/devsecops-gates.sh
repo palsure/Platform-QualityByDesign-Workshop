@@ -67,8 +67,8 @@ module_is_mobile() {
 
 run_gitleaks() {
   log ""
-  log "${BLUE}[Gitleaks]${NC} secrets scan (git tracked commits)"
-  local gitleaks_args=(detect --source "$ROOT_DIR" --config "$ROOT_DIR/.gitleaks.toml" --no-banner --redact)
+  log "${BLUE}[Gitleaks]${NC} secrets scan (working tree — fast, matches CI)"
+  local gitleaks_args=(detect --source "$ROOT_DIR" --config "$ROOT_DIR/.gitleaks.toml" --no-git --no-banner --redact)
   if command -v gitleaks >/dev/null 2>&1; then
     if gitleaks "${gitleaks_args[@]}"; then
       pass GITLEAKS "No secrets detected"
@@ -76,9 +76,8 @@ run_gitleaks() {
       fail GITLEAKS "Secrets or gitleaks findings — see output above"
     fi
   elif docker_ok; then
-    # Git mode (no --no-git): scan commits only — avoids false positives in .build/, node_modules/, etc.
     if docker run --rm -v "$ROOT_DIR:/repo:ro" -w /repo zricethezav/gitleaks:latest \
-         detect --source=. --config=.gitleaks.toml --no-banner --redact; then
+         detect --source=. --config=.gitleaks.toml --no-git --no-banner --redact; then
       pass GITLEAKS "No secrets detected (Docker)"
     else
       fail GITLEAKS "Secrets found (Docker gitleaks)"
