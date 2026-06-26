@@ -11,6 +11,7 @@ permissions:
   contents: read
   checks: read
   pull-requests: read
+  actions: read
 
 concurrency:
   group: pr-merge-gate-${{ github.event.pull_request.number }}
@@ -97,7 +98,7 @@ jobs:
     name: All quality gates passed
     runs-on: ubuntu-latest
     needs: paths
-    timeout-minutes: 120
+    timeout-minutes: 90
     steps:
       - name: Wait for module merge gates
         uses: actions/github-script@v7
@@ -109,14 +110,15 @@ jobs:
           REQUIRE_NR: ${{ needs.paths.outputs.nr }}
         with:
           script: |
-            const required = [];
-            if (process.env.REQUIRE_API === 'true') required.push('API Merge Gate');
-            if (process.env.REQUIRE_WEB === 'true') required.push('Web Merge Gate');
-            if (process.env.REQUIRE_ANDROID === 'true') required.push('Android Merge Gate');
-            if (process.env.REQUIRE_IOS === 'true') required.push('iOS Merge Gate');
-            if (process.env.REQUIRE_NR === 'true') required.push('NR Merge Gate');
+            const modules = [
+              { gate: 'API Merge Gate', workflowFile: 'streaming-app-api.yml', require: process.env.REQUIRE_API },
+              { gate: 'Web Merge Gate', workflowFile: 'streaming-app-web.yml', require: process.env.REQUIRE_WEB },
+              { gate: 'Android Merge Gate', workflowFile: 'streaming-app-android.yml', require: process.env.REQUIRE_ANDROID },
+              { gate: 'iOS Merge Gate', workflowFile: 'streaming-app-ios.yml', require: process.env.REQUIRE_IOS },
+              { gate: 'NR Merge Gate', workflowFile: 'streaming-app-newrelic.yml', require: process.env.REQUIRE_NR },
+            ].filter((m) => m.require === 'true');
 
-            if (required.length === 0) {
+            if (modules.length === 0) {
               core.info('No module paths changed — merge gate not required for this PR.');
               return;
             }
@@ -124,56 +126,118 @@ jobs:
             const sha = context.payload.pull_request.head.sha;
             const { owner, repo } = context.repo;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            const deadline = Date.now() + 110 * 60 * 1000;
-            const graceMs = 3 * 60 * 1000;
             const startedAt = Date.now();
+            const startupGraceMs = 3 * 60 * 1000;
+            const startupFailMs = 8 * 60 * 1000;
+            const deadline = Date.now() + 85 * 60 * 1000;
 
-            core.info(`Waiting for merge gates: ${required.join(', ')}`);
+            core.info(`Required merge gates: ${modules.map((m) => m.gate).join(', ')}`);
 
-            while (Date.now() < deadline) {
+            async function listWorkflowRuns() {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                head_sha: sha,
+                event: 'pull_request',
+                per_page: 50,
+              });
+              return data.workflow_runs;
+            }
+
+            function workflowRunFor(runs, workflowFile) {
+              const path = `.github/workflows/${workflowFile}`;
+              return runs
+                .filter((r) => r.path === path)
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            }
+
+            async function latestChecksByName() {
               const { data } = await github.rest.checks.listForRef({
                 owner,
                 repo,
                 ref: sha,
                 per_page: 100,
               });
-
               const latestByName = {};
               for (const run of data.check_runs) {
-                if (!required.includes(run.name)) continue;
                 const prev = latestByName[run.name];
                 if (!prev || new Date(run.started_at || 0) > new Date(prev.started_at || 0)) {
                   latestByName[run.name] = run;
                 }
               }
+              return latestByName;
+            }
 
-              const missing = required.filter((name) => !latestByName[name]);
-              if (missing.length > 0) {
-                if (Date.now() - startedAt < graceMs) {
-                  core.info(`Grace period — checks not registered yet: ${missing.join(', ')}`);
-                  await sleep(20_000);
+            while (Date.now() < deadline) {
+              const workflowRuns = await listWorkflowRuns();
+              const checks = await latestChecksByName();
+              const resolved = {};
+              const waiting = [];
+              const neverStarted = [];
+
+              for (const mod of modules) {
+                const check = checks[mod.gate];
+                if (check) {
+                  resolved[mod.gate] = check;
                   continue;
                 }
-                core.info(`Still waiting for checks to start: ${missing.join(', ')}`);
-                await sleep(30_000);
+
+                const run = workflowRunFor(workflowRuns, mod.workflowFile);
+                if (!run) {
+                  const elapsed = Date.now() - startedAt;
+                  if (elapsed < startupGraceMs) {
+                    waiting.push(`${mod.gate} (pipeline not registered yet)`);
+                  } else if (elapsed >= startupFailMs) {
+                    neverStarted.push(`${mod.gate} → ${mod.workflowFile}`);
+                  } else {
+                    waiting.push(`${mod.gate} (waiting for pipeline to start)`);
+                  }
+                  continue;
+                }
+
+                if (run.status !== 'completed') {
+                  waiting.push(`${mod.gate} (pipeline ${run.status})`);
+                  continue;
+                }
+
+                // Pipeline finished before merge-gate job existed on main — use workflow verdict.
+                resolved[mod.gate] = {
+                  status: 'completed',
+                  conclusion: run.conclusion === 'success' ? 'success' : 'failure',
+                  source: 'workflow-run',
+                };
+              }
+
+              if (neverStarted.length > 0) {
+                core.setFailed(
+                  [
+                    'Required module pipelines never started for this commit:',
+                    ...neverStarted.map((line) => `  • ${line}`),
+                    '',
+                    'GitHub loads pull_request workflows from the base branch (main).',
+                    'Merge CI workflow fixes to main, push a new commit, then re-run checks.',
+                  ].join('\n'),
+                );
+                return;
+              }
+
+              if (waiting.length > 0) {
+                core.info(`Waiting: ${waiting.join('; ')}`);
+                await sleep(20_000);
                 continue;
               }
 
-              const pending = required.filter((name) => latestByName[name].status !== 'completed');
-              if (pending.length > 0) {
-                core.info(`In progress: ${pending.join(', ')}`);
-                await sleep(30_000);
-                continue;
-              }
-
-              const failed = required.filter((name) => {
-                const conclusion = latestByName[name].conclusion;
-                return conclusion !== 'success';
+              const failed = Object.entries(resolved).filter(([, check]) => {
+                if (check.status !== 'completed') return true;
+                return check.conclusion !== 'success';
               });
 
               if (failed.length > 0) {
                 const details = failed
-                  .map((name) => `${name}=${latestByName[name].conclusion}`)
+                  .map(([name, check]) => {
+                    const via = check.source === 'workflow-run' ? 'workflow' : 'check';
+                    return `${name}=${check.conclusion} (${via})`;
+                  })
                   .join(', ');
                 core.setFailed(`Merge blocked — failed quality gates: ${details}`);
                 return;
