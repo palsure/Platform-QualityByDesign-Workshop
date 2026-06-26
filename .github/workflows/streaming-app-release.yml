@@ -230,6 +230,9 @@ jobs:
           slack-channel-id: ${{ vars.SLACK_CHANNEL_ID || secrets.SLACK_CHANNEL_ID }}
 
       # ── Playwright (E2E) ──────────────────────────────────────────────────
+      - name: Build web app for E2E
+        run: npm run build
+        working-directory: web-player
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
         working-directory: web-player
