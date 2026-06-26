@@ -125,7 +125,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     needs: [notify-start]
-    if: env.SKIP_TESTS != 'true'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -318,7 +318,10 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     needs: [notify-start, build-app, unit-tests]
-    if: env.SKIP_TESTS != 'true' && needs.unit-tests.outputs.gate_passed == 'true' && needs.build-app.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.unit-tests.outputs.gate_passed == 'true' &&
+      needs.build-app.result == 'success'
     # BAT is a soft gate: if `swift test` cannot start within 60 s (toolchain
     # / simulator unavailable) the job still completes and downstream
     # Firebase deploy proceeds based on the Unit gate alone.

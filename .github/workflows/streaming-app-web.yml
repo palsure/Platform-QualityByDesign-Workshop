@@ -151,7 +151,9 @@ jobs:
     # Unit tests run AFTER the build artifact is ready so we know the code
     # at least compiles before we exercise the test suite.
     needs: [notify-start, build]
-    if: env.SKIP_TESTS != 'true' && needs.build.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.build.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -286,7 +288,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [notify-start, deploy-preview]
-    if: env.SKIP_TESTS != 'true' && needs.deploy-preview.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      needs.deploy-preview.result == 'success'
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false

@@ -187,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [notify-start]
-    if: env.SKIP_TESTS != 'true'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true
     concurrency:
       group: gh-pages-deploy-${{ github.run_id }}
       cancel-in-progress: false
@@ -406,7 +406,7 @@ jobs:
     needs: [notify-start, unit-tests, lint, devsecops]
     if: |
       always() &&
-      env.SKIP_TESTS != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
       needs.devsecops.outputs.passed == 'true' &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.lint.result == 'success'
@@ -519,8 +519,8 @@ jobs:
     # of the pipeline (Smoke skipped, public Firebase deploy on Unit gate
     # alone) follows the existing soft-gate logic.
     if: |
-      env.SKIP_TESTS != 'true' &&
-      env.SKIP_BAT   != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_bat != true) &&
       vars.SKIP_BAT     != 'true' &&
       (github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-bat]')) &&
       (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-bat]')) &&
@@ -835,11 +835,11 @@ jobs:
     timeout-minutes: 5
     needs: [notify-start, build, unit-tests, publish-internal]
     if: |
-      (env.SKIP_BAT == 'true' ||
-       vars.SKIP_BAT == 'true' ||
-       (github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-bat]')) ||
-       (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[skip-bat]'))) &&
-      env.SKIP_TESTS != 'true' &&
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_bat == true) ||
+      vars.SKIP_BAT == 'true' ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-bat]')) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[skip-bat]')) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
       needs.unit-tests.outputs.gate_passed == 'true' &&
       needs.publish-internal.outputs.distributed == 'true'
     steps:
@@ -1235,7 +1235,7 @@ jobs:
     # Unit gate passes. We deliberately do NOT wait for BAT/Smoke here —
     if: |
       always() &&
-      env.SKIP_TESTS != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
       needs.devsecops.outputs.passed == 'true' &&
       needs.build.result == 'success' &&
       needs.unit-tests.outputs.gate_passed == 'true'

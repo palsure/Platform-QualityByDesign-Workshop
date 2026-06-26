@@ -128,7 +128,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: notify-start
-    if: env.SKIP_TESTS != 'true' && env.SKIP_UNIT_TESTS != 'true'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_unit_tests != true)
     outputs:
       thread_ts:   ${{ needs.notify-start.outputs.thread_ts }}
       gate_passed: ${{ steps.unit-gate.outputs.passed }}
@@ -252,8 +254,8 @@ jobs:
     timeout-minutes: 15
     needs: [notify-start, unit-tests]
     if: |
-      env.SKIP_TESTS != 'true' &&
-      env.SKIP_UNIT_TESTS != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_unit_tests != true) &&
       needs.unit-tests.outputs.gate_passed == 'true'
     outputs:
       passed: ${{ steps.gate.outputs.passed }}
@@ -322,7 +324,7 @@ jobs:
     timeout-minutes: 15
     needs: [notify-start, unit-tests, contract-tests]
     if: |
-      env.SKIP_TESTS != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
       (needs.unit-tests.outputs.gate_passed == 'true' ||
        needs.unit-tests.result == 'skipped') &&
       (needs.contract-tests.outputs.passed == 'true' ||
@@ -427,7 +429,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [notify-start, unit-tests, build-and-verify]
-    if: env.SKIP_TESTS != 'true' && env.SKIP_BAT != 'true' && needs.build-and-verify.result == 'success'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_bat != true) &&
+      needs.build-and-verify.result == 'success'
     outputs:
       gate_passed: ${{ steps.bat-gate.outputs.passed }}
 
@@ -525,7 +530,7 @@ jobs:
     needs: [notify-start, promote-live, build-and-verify]
     continue-on-error: true
     if: |
-      env.SKIP_TESTS != 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != true) &&
       needs.promote-live.result == 'success' &&
       needs.build-and-verify.result == 'success'
 
