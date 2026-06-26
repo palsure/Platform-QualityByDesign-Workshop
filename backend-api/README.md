@@ -2,6 +2,8 @@
 
 Java 21 / Spring Boot 3 REST API for the streaming workshop — video catalog and health checks.
 
+_Validation: API module PR pipeline (unit · contract · BAT · DevSecOps · ephemeral · PR comment)._
+
 ## Tech stack
 
 | Layer | Technology |
