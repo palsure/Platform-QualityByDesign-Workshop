@@ -1,0 +1,37 @@
+<div>PUT to http://localhost:35317/api/v1/videos/smoke-upd-685c5232</div>
+
+    <h4>Body</h4>
+    <div>
+    <pre class="preformated-text">
+{
+    &quot;duration&quot;: 999,
+    &quot;videoId&quot;: &quot;smoke-upd-685c5232&quot;,
+    &quot;description&quot;: &quot;Updated description&quot;,
+    &quot;genre&quot;: &quot;nature&quot;,
+    &quot;category&quot;: &quot;documentary&quot;,
+    &quot;hlsManifestUrl&quot;: &quot;https://example.com/updated.m3u8&quot;,
+    &quot;title&quot;: &quot;Updated Title&quot;
+}    </pre>
+    </div>
+
+    <h4>Headers</h4>
+    <div>
+            <div>Accept: */*</div>
+            <div>Content-Type: application/json</div>
+    </div>
+
+
+
+    <h4>Curl</h4>
+    <div>
+        curl -v -X PUT &#39;http://localhost:35317/api/v1/videos/smoke-upd-685c5232&#39; -H &#39;Accept: */*&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{
+    &quot;duration&quot;: 999,
+    &quot;videoId&quot;: &quot;smoke-upd-685c5232&quot;,
+    &quot;description&quot;: &quot;Updated description&quot;,
+    &quot;genre&quot;: &quot;nature&quot;,
+    &quot;category&quot;: &quot;documentary&quot;,
+    &quot;hlsManifestUrl&quot;: &quot;https://example.com/updated.m3u8&quot;,
+    &quot;title&quot;: &quot;Updated Title&quot;
+}&#39;
+    </div>
+
