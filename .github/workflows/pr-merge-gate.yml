@@ -129,6 +129,7 @@ jobs:
             const startedAt = Date.now();
             const startupGraceMs = 3 * 60 * 1000;
             const startupFailMs = 8 * 60 * 1000;
+            const mergeGateGraceMs = 10 * 60 * 1000;
             const deadline = Date.now() + 85 * 60 * 1000;
 
             core.info(`Required merge gates: ${modules.map((m) => m.gate).join(', ')}`);
@@ -200,7 +201,13 @@ jobs:
                   continue;
                 }
 
-                // Pipeline finished before merge-gate job existed on main — use workflow verdict.
+                const completedAgo = Date.now() - new Date(run.updated_at).getTime();
+                if (completedAgo < mergeGateGraceMs) {
+                  waiting.push(`${mod.gate} (workflow ${run.conclusion}, waiting for merge-gate check)`);
+                  continue;
+                }
+
+                // Legacy fallback when main branch has no merge-gate job yet.
                 resolved[mod.gate] = {
                   status: 'completed',
                   conclusion: run.conclusion === 'success' ? 'success' : 'failure',

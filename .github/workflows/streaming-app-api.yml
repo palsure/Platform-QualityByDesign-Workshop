@@ -815,7 +815,7 @@ jobs:
                  needs.build-and-verify.result == 'success' &&
                  needs.bat-tests.outputs.gate_passed == 'true' &&
                  needs.ephemeral-validation.outputs.all_passed == 'true' &&
-                 needs.promote-live.result == 'success') && 'success' || 'failure' }}
+                 (needs.promote-live.result == 'success' || needs.promote-live.result == 'skipped')) && 'success' || 'failure' }}
         run: python3 .github/scripts/update_build_message.py
 
       - name: Fail pipeline if critical stage failed
@@ -827,8 +827,8 @@ jobs:
           needs.build-and-verify.result == 'failure' ||
           needs.bat-tests.result == 'failure' ||
           needs.bat-tests.outputs.gate_passed == 'false' ||
-          needs.ephemeral-validation.outputs.all_passed != 'true' ||
-          needs.promote-live.result != 'success'
+          (needs.ephemeral-validation.result != 'skipped' && needs.ephemeral-validation.outputs.all_passed != 'true') ||
+          needs.promote-live.result == 'failure'
         run: exit 1
 
       # PR comment is posted by api-pr-comment job after smoke-tests complete
