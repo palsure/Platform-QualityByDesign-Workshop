@@ -1,0 +1,7 @@
+"Epic","Feature","Story","FAILED","BROKEN","PASSED","SKIPPED","UNKNOWN"
+"Video Catalog API","List Videos","Filter by category returns matching videos only","0","0","1","0","0"
+"Video Catalog API","Delete Video","Delete video returns 204 and video no longer appears in listings","0","0","1","0","0"
+"Video Catalog API","Create Video","Duplicate videoId returns 400 Bad Request","0","0","1","0","0"
+"Video Catalog API","Manifest","Get manifest returns HLS and DASH URLs","0","0","1","0","0"
+"Video Catalog API","Update Video","Update an existing video replaces all fields","0","0","1","0","0"
+"Video Catalog API","Search Videos","Search by title keyword returns matching videos","0","0","1","0","0"
